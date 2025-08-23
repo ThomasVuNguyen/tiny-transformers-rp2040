@@ -595,16 +595,22 @@ class ScalableTrainer:
             os.makedirs(models_dir)
             print(f"Created {models_dir} directory")
         
+        # Create model-specific folder
+        model_folder = os.path.join(models_dir, self.model_size)
+        if not os.path.exists(model_folder):
+            os.makedirs(model_folder)
+            print(f"Created {model_folder} directory")
+        
         # Get actual parameter count for filename
         param_count = self.model._count_parameters()
         
-        model_filename = os.path.join(models_dir, f"model_{self.model_size}_{param_count}p.bin")
-        vocab_filename = os.path.join(models_dir, f"vocab_{self.model_size}_{param_count}p.bin")
+        model_filename = os.path.join(model_folder, f"model_{param_count}p.bin")
+        vocab_filename = os.path.join(model_folder, f"vocab_{param_count}p.bin")
         
         print(f"Saving {self.model_size} model...")
         
         # Save model config first
-        config_filename = os.path.join(models_dir, f"config_{self.model_size}_{param_count}p.json")
+        config_filename = os.path.join(model_folder, f"config_{param_count}p.json")
         with open(config_filename, 'w') as f:
             json.dump(self.config, f, indent=2)
         
@@ -641,10 +647,10 @@ class ScalableTrainer:
         # Save vocabulary
         self.tokenizer.save_vocab(vocab_filename)
         
-        print(f"Files created in {models_dir}/:")
-        print(f"  {os.path.basename(model_filename)} - model weights")
-        print(f"  {os.path.basename(vocab_filename)} - vocabulary") 
-        print(f"  {os.path.basename(config_filename)} - configuration")
+        print(f"Files created in {model_folder}/:")
+        print(f"  model_{param_count}p.bin - model weights")
+        print(f"  vocab_{param_count}p.bin - vocabulary") 
+        print(f"  config_{param_count}p.json - configuration")
 
 def estimate_model_size(vocab_size, dim, hidden_dim, n_layers, n_heads):
     """Estimate model parameters and memory usage"""
@@ -874,10 +880,16 @@ def custom_model():
             os.makedirs(models_dir)
             print(f"Created {models_dir} directory")
         
+        # Create model-specific folder
+        model_folder = os.path.join(models_dir, 'custom')
+        if not os.path.exists(model_folder):
+            os.makedirs(model_folder)
+            print(f"Created {model_folder} directory")
+        
         # Save with custom name
-        model_filename = os.path.join(models_dir, f"model_custom_{total_params}p.bin")
-        vocab_filename = os.path.join(models_dir, f"vocab_custom_{total_params}p.bin")
-        config_filename = os.path.join(models_dir, f"config_custom_{total_params}p.json")
+        model_filename = os.path.join(model_folder, f"model_{total_params}p.bin")
+        vocab_filename = os.path.join(model_folder, f"vocab_{total_params}p.bin")
+        config_filename = os.path.join(model_folder, f"config_{total_params}p.json")
         
         # Save config
         with open(config_filename, 'w') as f:
@@ -931,59 +943,68 @@ def list_models():
     
     print(f"=== Models in {models_dir}/ ===")
     
-    # Find all model files
-    model_files = []
-    vocab_files = []
-    config_files = []
+    # Find all model folders
+    model_folders = []
+    for item in os.listdir(models_dir):
+        item_path = os.path.join(models_dir, item)
+        if os.path.isdir(item_path):
+            # Check if it contains model files
+            model_files = [f for f in os.listdir(item_path) if f.startswith("model_") and f.endswith(".bin")]
+            if model_files:
+                model_folders.append(item)
     
-    for filename in os.listdir(models_dir):
-        if filename.startswith("model_") and filename.endswith(".bin"):
-            model_files.append(filename)
-        elif filename.startswith("vocab_") and filename.endswith(".bin"):
-            vocab_files.append(filename)
-        elif filename.startswith("config_") and filename.endswith(".json"):
-            config_files.append(filename)
-    
-    if not model_files:
+    if not model_folders:
         print("No trained models found.")
         return
     
-    # Group by model type and extract parameter count
-    model_info = {}
-    for filename in model_files:
-        # Extract model type and parameter count from filename (e.g., "model_story-1k_1024p.bin" -> "story-1k", 1024)
-        parts = filename[6:-4].split('_')  # Remove "model_" prefix and ".bin" suffix, split by '_'
-        if len(parts) >= 2:
-            model_type = parts[0]  # First part is the model type (e.g., "story-1k")
-            param_str = parts[-1]  # Last part should be like "1024p"
+    print(f"Found {len(model_folders)} model folders:")
+    
+    # Process each model folder
+    for model_name in sorted(model_folders):
+        model_folder = os.path.join(models_dir, model_name)
+        print(f"\n  {model_name}:")
+        
+        # Find all files in this model's folder
+        files = os.listdir(model_folder)
+        model_files = [f for f in files if f.startswith("model_") and f.endswith(".bin")]
+        vocab_files = [f for f in files if f.startswith("vocab_") and f.endswith(".bin")]
+        config_files = [f for f in files if f.startswith("config_") and f.endswith(".json")]
+        
+        # Extract parameter count from model filename
+        if model_files:
+            model_file = model_files[0]  # Should be only one
+            param_str = model_file[6:-4]  # Remove "model_" prefix and ".bin" suffix
             if param_str.endswith('p'):
                 try:
-                    param_count = int(param_str[:-1])  # Remove 'p' and convert to int
-                    if model_type not in model_info:
-                        model_info[model_type] = {'param_count': param_count, 'files': []}
-                    model_info[model_type]['files'].append(filename)
+                    param_count = int(param_str[:-1])
+                    print(f"    Parameters: {param_count:,}")
+                    
+                    # Show file sizes
+                    for file_type, file_list in [("Model", model_files), ("Vocab", vocab_files), ("Config", config_files)]:
+                        for filename in file_list:
+                            filepath = os.path.join(model_folder, filename)
+                            if os.path.exists(filepath):
+                                size_kb = os.path.getsize(filepath) / 1024
+                                print(f"    {file_type}: {filename} ({size_kb:.1f}KB)")
+                    
+                    # Calculate total size for this model
+                    total_size = 0
+                    for filename in model_files + vocab_files + config_files:
+                        filepath = os.path.join(model_folder, filename)
+                        if os.path.exists(filepath):
+                            total_size += os.path.getsize(filepath)
+                    
+                    total_kb = total_size / 1024
+                    if total_kb > 1024:
+                        size_str = f"{total_kb/1024:.2f}MB"
+                    else:
+                        size_str = f"{total_kb:.1f}KB"
+                    print(f"    Total size: {size_str}")
+                    
                 except ValueError:
-                    continue
-    
-    print(f"Found {len(model_files)} model files:")
-    for model_type in sorted(model_info.keys()):
-        info = model_info[model_type]
-        param_count = info['param_count']
-        
-        # Find corresponding files
-        model_file = f"model_{model_type}_{param_count}p.bin"
-        vocab_file = f"vocab_{model_type}_{param_count}p.bin"
-        config_file = f"config_{model_type}_{param_count}p.json"
-        
-        # Check file sizes
-        model_size = os.path.getsize(os.path.join(models_dir, model_file)) if os.path.exists(os.path.join(models_dir, model_file)) else 0
-        vocab_size = os.path.getsize(os.path.join(models_dir, vocab_file)) if os.path.exists(os.path.join(models_dir, vocab_file)) else 0
-        
-        print(f"  {model_type:12s} ({param_count:,} params):")
-        print(f"    Model: {model_file} ({model_size/1024:.1f}KB)")
-        print(f"    Vocab: {vocab_file} ({vocab_size/1024:.1f}KB)")
-        print(f"    Config: {config_file}")
-        print()
+                    print(f"    [Could not parse parameter count from {model_file}]")
+        else:
+            print(f"    [No model files found]")
 
 def cleanup_models():
     """Clean up models folder - remove all model files"""
@@ -994,72 +1015,76 @@ def cleanup_models():
     
     print(f"=== Cleaning up {models_dir}/ ===")
     
-    # Count files
-    files = os.listdir(models_dir)
-    model_files = [f for f in files if f.endswith(('.bin', '.json'))]
+    # Find all model folders
+    model_folders = []
+    for item in os.listdir(models_dir):
+        item_path = os.path.join(models_dir, item)
+        if os.path.isdir(item_path):
+            # Check if it contains model files
+            model_files = [f for f in os.listdir(item_path) if f.endswith(('.bin', '.json'))]
+            if model_files:
+                model_folders.append(item)
     
-    if not model_files:
-        print("No model files to remove.")
+    if not model_folders:
+        print("No model folders found.")
         return
     
-    print(f"Found {len(model_files)} model files:")
+    print(f"Found {len(model_folders)} model folders:")
     
-    # Group files by model type for better display
-    model_groups = {}
-    for filename in sorted(model_files):
-        if filename.startswith('model_') and filename.endswith('.bin'):
-            # Extract model info for grouping
-            parts = filename[6:-4].split('_')
-            if len(parts) >= 2:
-                model_type = parts[0]  # First part is the model type (e.g., "story-1k")
-                param_str = parts[-1]  # Last part should be like "1024p"
-                if param_str.endswith('p'):
-                    try:
-                        param_count = int(param_str[:-1])
-                        if model_type not in model_groups:
-                            model_groups[model_type] = {'param_count': param_count, 'files': []}
-                        model_groups[model_type]['files'].append(filename)
-                    except ValueError:
-                        pass
-    
-    # Display grouped files
-    for model_type in sorted(model_groups.keys()):
-        info = model_groups[model_type]
-        print(f"  {model_type} ({info['param_count']:,} params):")
+    # Display grouped files by model folder
+    total_files = 0
+    for model_name in sorted(model_folders):
+        model_folder = os.path.join(models_dir, model_name)
+        files = os.listdir(model_folder)
+        model_files = [f for f in files if f.endswith(('.bin', '.json'))]
         
-        # Find all related files
-        param_str = f"{info['param_count']}p"
-        related_files = [f for f in model_files if f"_{param_str}." in f]
-        
-        for filename in sorted(related_files):
-            filepath = os.path.join(models_dir, filename)
-            size_kb = os.path.getsize(filepath) / 1024
-            print(f"    {filename} ({size_kb:.1f}KB)")
-        print()
+        if model_files:
+            print(f"  {model_name}:")
+            total_size = 0
+            
+            for filename in sorted(model_files):
+                filepath = os.path.join(model_folder, filename)
+                size_kb = os.path.getsize(filepath) / 1024
+                total_size += size_kb
+                print(f"    {filename} ({size_kb:.1f}KB)")
+            
+            total_mb = total_size / 1024
+            if total_mb > 1:
+                print(f"    Total: {total_mb:.2f}MB")
+            else:
+                print(f"    Total: {total_size:.1f}KB")
+            print()
+            
+            total_files += len(model_files)
     
-    # Also show any ungrouped files
-    ungrouped = [f for f in model_files if not any(f"_{g['param_count']}p" in f for g in model_groups.values())]
-    if ungrouped:
-        print("Other files:")
-        for filename in sorted(ungrouped):
-            filepath = os.path.join(models_dir, filename)
-            size_kb = os.path.getsize(filepath) / 1024
-            print(f"  {filename} ({size_kb:.1f}KB)")
-        print()
-    
-    confirm = input(f"\nRemove all {len(model_files)} files? (y/N): ").strip().lower()
+    confirm = input(f"\nRemove all {total_files} files from {len(model_folders)} model folders? (y/N): ").strip().lower()
     if confirm == 'y':
         removed_count = 0
-        for filename in model_files:
-            filepath = os.path.join(models_dir, filename)
-            try:
-                os.remove(filepath)
-                removed_count += 1
-                print(f"  Removed: {filename}")
-            except Exception as e:
-                print(f"  Error removing {filename}: {e}")
+        removed_folders = 0
         
-        print(f"\nRemoved {removed_count} files.")
+        for model_name in model_folders:
+            model_folder = os.path.join(models_dir, model_name)
+            files = os.listdir(model_folder)
+            
+            # Remove all files in the model folder
+            for filename in files:
+                if filename.endswith(('.bin', '.json')):
+                    filepath = os.path.join(model_folder, filename)
+                    try:
+                        os.remove(filepath)
+                        removed_count += 1
+                    except Exception as e:
+                        print(f"  Error removing {filename}: {e}")
+            
+            # Try to remove the empty folder
+            try:
+                os.rmdir(model_folder)
+                removed_folders += 1
+                print(f"  Removed folder: {model_name}/")
+            except:
+                print(f"  Kept folder: {model_name}/ (not empty)")
+        
+        print(f"\nRemoved {removed_count} files and {removed_folders} folders.")
         
         # Remove empty models directory
         try:
@@ -1086,27 +1111,40 @@ def show_disk_usage():
     files_info = []
     model_groups = {}
     
-    for filename in os.listdir(models_dir):
-        filepath = os.path.join(models_dir, filename)
-        if os.path.isfile(filepath):
-            size = os.path.getsize(filepath)
-            total_size += size
-            file_count += 1
-            files_info.append((filename, size))
-            
-            # Group by model type for summary
-            if filename.startswith('model_') and filename.endswith('.bin'):
-                parts = filename[6:-4].split('_')
-                if len(parts) >= 2:
-                    model_type = parts[0]  # First part is the model type (e.g., "story-1k")
-                    param_str = parts[-1]  # Last part should be like "1024p"
+    # Process each model folder
+    for item in os.listdir(models_dir):
+        item_path = os.path.join(models_dir, item)
+        if os.path.isdir(item_path):
+            # Check if it contains model files
+            model_files = [f for f in os.listdir(item_path) if f.startswith("model_") and f.endswith(".bin")]
+            if model_files:
+                # This is a model folder
+                model_name = item
+                folder_size = 0
+                folder_files = 0
+                
+                # Process all files in this model folder
+                for filename in os.listdir(item_path):
+                    filepath = os.path.join(item_path, filename)
+                    if os.path.isfile(filepath):
+                        size = os.path.getsize(filepath)
+                        folder_size += size
+                        folder_files += 1
+                        total_size += size
+                        file_count += 1
+                        files_info.append((f"{model_name}/{filename}", size))
+                
+                # Extract parameter count from model filename for grouping
+                if model_files:
+                    model_file = model_files[0]
+                    param_str = model_file[6:-4]  # Remove "model_" prefix and ".bin" suffix
                     if param_str.endswith('p'):
                         try:
                             param_count = int(param_str[:-1])
-                            if model_type not in model_groups:
-                                model_groups[model_type] = {'param_count': param_count, 'total_size': 0, 'file_count': 0}
-                            model_groups[model_type]['total_size'] += size
-                            model_groups[model_type]['file_count'] += 1
+                            if model_name not in model_groups:
+                                model_groups[model_name] = {'param_count': param_count, 'total_size': 0, 'file_count': 0}
+                            model_groups[model_name]['total_size'] += folder_size
+                            model_groups[model_name]['file_count'] += folder_files
                         except ValueError:
                             pass
     
@@ -1124,24 +1162,24 @@ def show_disk_usage():
     # Show summary by model type
     if model_groups:
         print("Models by parameter count:")
-        for model_type in sorted(model_groups.keys(), key=lambda x: model_groups[x]['param_count']):
-            info = model_groups[model_type]
+        for model_name in sorted(model_groups.keys(), key=lambda x: model_groups[x]['param_count']):
+            info = model_groups[model_name]
             size_kb = info['total_size'] / 1024
             if size_kb > 1024:
                 size_str = f"{size_kb/1024:.2f}MB"
             else:
                 size_str = f"{size_kb:.1f}KB"
-            print(f"  {model_type:12s} ({info['param_count']:6,} params): {size_str:>8s}")
+            print(f"  {model_name:20s} ({info['param_count']:6,} params): {size_str:>8s}")
         print()
     
     print("All files by size:")
-    for filename, size in files_info:
+    for filepath, size in files_info:
         size_kb = size / 1024
         if size_kb > 1024:
             size_str = f"{size_kb/1024:.2f}MB"
         else:
             size_str = f"{size_kb:.1f}KB"
-        print(f"  {filename:30s}: {size_str:>8s}")
+        print(f"  {filepath:35s}: {size_str:>8s}")
     
     print()
     print(f"Average file size: {total_size/file_count/1024:.1f}KB")
@@ -1163,7 +1201,14 @@ def find_models_by_params(min_params=None, max_params=None):
     print()
     
     # Find all model files
-    model_files = [f for f in os.listdir(models_dir) if f.startswith("model_") and f.endswith(".bin")]
+    model_files = []
+    for item in os.listdir(models_dir):
+        item_path = os.path.join(models_dir, item)
+        if os.path.isdir(item_path):
+            # Check if it contains model files
+            folder_model_files = [f for f in os.listdir(item_path) if f.startswith("model_") and f.endswith(".bin")]
+            for model_file in folder_model_files:
+                model_files.append((item, model_file))  # (folder_name, filename)
     
     if not model_files:
         print("No model files found.")
@@ -1171,43 +1216,38 @@ def find_models_by_params(min_params=None, max_params=None):
     
     # Extract model info and filter by parameter count
     matching_models = []
-    for filename in model_files:
-        # Handle new naming scheme: model_story-1k_1024p.bin
-        parts = filename[6:-4].split('_')  # Remove "model_" prefix and ".bin" suffix, split by '_'
-        if len(parts) >= 2:
-            # First part is the model type (e.g., "story-1k")
-            model_type = parts[0]
-            # Last part is the parameter count (e.g., "1024p")
-            param_str = parts[-1]
-            
-            if param_str.endswith('p'):
-                try:
-                    param_count = int(param_str[:-1])  # Remove 'p' and convert to int
-                    if min_params <= param_count <= max_params:
-                        # Check if all related files exist
-                        model_file = f"model_{model_type}_{param_count}p.bin"
-                        vocab_file = f"vocab_{model_type}_{param_count}p.bin"
-                        config_file = f"config_{model_type}_{param_count}p.json"
+    for folder_name, filename in model_files:
+        # Extract parameter count from model filename (e.g., "model_1024p.bin" -> 1024)
+        param_str = filename[6:-4]  # Remove "model_" prefix and ".bin" suffix
+        
+        if param_str.endswith('p'):
+            try:
+                param_count = int(param_str[:-1])  # Remove 'p' and convert to int
+                if min_params <= param_count <= max_params:
+                    # Check if all related files exist
+                    model_file = f"model_{param_count}p.bin"
+                    vocab_file = f"vocab_{param_count}p.bin"
+                    config_file = f"config_{param_count}p.json"
+                    
+                    model_path = os.path.join(models_dir, folder_name, model_file)
+                    vocab_path = os.path.join(models_dir, folder_name, vocab_file)
+                    config_path = os.path.join(models_dir, folder_name, config_file)
+                    
+                    if all(os.path.exists(p) for p in [model_path, vocab_path, config_path]):
+                        model_size = os.path.getsize(model_path)
+                        vocab_size = os.path.getsize(vocab_path)
+                        total_size = model_size + vocab_size
                         
-                        model_path = os.path.join(models_dir, model_file)
-                        vocab_path = os.path.join(models_dir, vocab_file)
-                        config_path = os.path.join(models_dir, config_file)
-                        
-                        if all(os.path.exists(p) for p in [model_path, vocab_path, config_path]):
-                            model_size = os.path.getsize(model_path)
-                            vocab_size = os.path.getsize(vocab_path)
-                            total_size = model_size + vocab_size
-                            
-                            matching_models.append({
-                                'type': model_type,
-                                'params': param_count,
-                                'model_size': model_size,
-                                'vocab_size': vocab_size,
-                                'total_size': total_size,
-                                'files': [model_file, vocab_file, config_file]
-                            })
-                except ValueError:
-                    continue
+                        matching_models.append({
+                            'type': folder_name,
+                            'params': param_count,
+                            'model_size': model_size,
+                            'vocab_size': vocab_size,
+                            'total_size': total_size,
+                            'files': [f"{folder_name}/{model_file}", f"{folder_name}/{vocab_file}", f"{folder_name}/{config_file}"]
+                        })
+            except ValueError:
+                continue
     
     if not matching_models:
         print(f"No models found with {min_params:,} to {max_params:,} parameters.")
@@ -1226,7 +1266,7 @@ def find_models_by_params(min_params=None, max_params=None):
         else:
             size_str = f"{total_kb:.1f}KB"
         
-        print(f"  {model['type']:12s} ({model['params']:6,} params): {size_str:>8s}")
+        print(f"  {model['type']:20s} ({model['params']:6,} params): {size_str:>8s}")
         print(f"    Files: {', '.join(model['files'])}")
         print()
     

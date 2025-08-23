@@ -1,0 +1,9 @@
+{
+  "vocab_size": 160,
+  "dim": 20,
+  "hidden_dim": 80,
+  "n_layers": 2,
+  "n_heads": 4,
+  "max_seq_len": 56,
+  "description": "~10K parameters - Chat responses"
+}

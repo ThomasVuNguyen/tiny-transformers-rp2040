@@ -1,0 +1,9 @@
+{
+  "vocab_size": 384,
+  "dim": 48,
+  "hidden_dim": 192,
+  "n_layers": 3,
+  "n_heads": 8,
+  "max_seq_len": 80,
+  "description": "~40K parameters - Assistant tasks"
+}

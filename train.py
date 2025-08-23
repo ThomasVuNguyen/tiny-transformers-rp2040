@@ -22,50 +22,122 @@ import json
 
 # Model size presets - we'll test each one
 MODEL_CONFIGS = {
-    'tiny': {
+    'story-1k': {
         'vocab_size': 64,
         'dim': 8,
         'hidden_dim': 32,  # 4x dim
         'n_layers': 1,
         'n_heads': 2,
         'max_seq_len': 32,
-        'description': '~1K parameters'
+        'description': '~1K parameters - Story generation'
     },
-    'small': {
+    'story-2k': {
+        'vocab_size': 96,
+        'dim': 12,
+        'hidden_dim': 48,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 3,
+        'max_seq_len': 36,
+        'description': '~2K parameters - Story generation'
+    },
+    'story-3k': {
+        'vocab_size': 112,
+        'dim': 14,
+        'hidden_dim': 56,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 2,
+        'max_seq_len': 40,
+        'description': '~3K parameters - Story generation'
+    },
+    'chat-5k': {
         'vocab_size': 128,
         'dim': 16,
         'hidden_dim': 64,
         'n_layers': 2,
         'n_heads': 4,
         'max_seq_len': 48,
-        'description': '~5K parameters'
+        'description': '~5K parameters - Chat responses'
     },
-    'medium': {
+    'chat-7k': {
+        'vocab_size': 144,
+        'dim': 18,
+        'hidden_dim': 72,  # 4x dim
+        'n_layers': 2,
+        'n_heads': 3,
+        'max_seq_len': 52,
+        'description': '~7K parameters - Chat responses'
+    },
+    'chat-10k': {
+        'vocab_size': 160,
+        'dim': 20,
+        'hidden_dim': 80,  # 4x dim
+        'n_layers': 2,
+        'n_heads': 4,
+        'max_seq_len': 56,
+        'description': '~10K parameters - Chat responses'
+    },
+    'chat-13k': {
+        'vocab_size': 192,
+        'dim': 24,
+        'hidden_dim': 96,  # 4x dim
+        'n_layers': 2,
+        'n_heads': 4,
+        'max_seq_len': 60,
+        'description': '~13K parameters - Chat responses'
+    },
+    'assistant-20k': {
         'vocab_size': 256,
         'dim': 32,
         'hidden_dim': 128,
         'n_layers': 3,
         'n_heads': 8,
         'max_seq_len': 64,
-        'description': '~20K parameters'
+        'description': '~20K parameters - Assistant tasks'
     },
-    'large': {
+    'assistant-25k': {
+        'vocab_size': 288,
+        'dim': 36,
+        'hidden_dim': 144,  # 4x dim
+        'n_layers': 3,
+        'n_heads': 6,
+        'max_seq_len': 68,
+        'description': '~25K parameters - Assistant tasks'
+    },
+    'assistant-30k': {
+        'vocab_size': 320,
+        'dim': 40,
+        'hidden_dim': 160,  # 4x dim
+        'n_layers': 3,
+        'n_heads': 8,
+        'max_seq_len': 72,
+        'description': '~30K parameters - Assistant tasks'
+    },
+    'assistant-40k': {
+        'vocab_size': 384,
+        'dim': 48,
+        'hidden_dim': 192,  # 4x dim
+        'n_layers': 3,
+        'n_heads': 8,
+        'max_seq_len': 80,
+        'description': '~40K parameters - Assistant tasks'
+    },
+    'expert-80k': {
         'vocab_size': 512,
         'dim': 64,
         'hidden_dim': 256,
         'n_layers': 4,
         'n_heads': 16,
         'max_seq_len': 96,
-        'description': '~80K parameters'
+        'description': '~80K parameters - Expert tasks'
     },
-    'xlarge': {
+    'expert-300k': {
         'vocab_size': 1024,
         'dim': 128,
         'hidden_dim': 512,
         'n_layers': 6,
         'n_heads': 32,
         'max_seq_len': 128,
-        'description': '~300K parameters'
+        'description': '~300K parameters - Expert tasks'
     }
 }
 
@@ -210,6 +282,9 @@ class ScalableTokenizer:
     
     def save_vocab(self, filename):
         """Save vocabulary for RP2040"""
+        # Ensure the directory exists
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
+        
         with open(filename, 'wb') as f:
             f.write(struct.pack('H', self.vocab_size))
             for i in range(self.vocab_size):
@@ -514,13 +589,22 @@ class ScalableTrainer:
     
     def save_model(self):
         """Save model with size-specific filename"""
-        model_filename = f"model_{self.model_size}.bin"
-        vocab_filename = f"vocab_{self.model_size}.bin"
+        # Create models directory if it doesn't exist
+        models_dir = "models"
+        if not os.path.exists(models_dir):
+            os.makedirs(models_dir)
+            print(f"Created {models_dir} directory")
+        
+        # Get actual parameter count for filename
+        param_count = self.model._count_parameters()
+        
+        model_filename = os.path.join(models_dir, f"model_{self.model_size}_{param_count}p.bin")
+        vocab_filename = os.path.join(models_dir, f"vocab_{self.model_size}_{param_count}p.bin")
         
         print(f"Saving {self.model_size} model...")
         
         # Save model config first
-        config_filename = f"config_{self.model_size}.json"
+        config_filename = os.path.join(models_dir, f"config_{self.model_size}_{param_count}p.json")
         with open(config_filename, 'w') as f:
             json.dump(self.config, f, indent=2)
         
@@ -557,16 +641,60 @@ class ScalableTrainer:
         # Save vocabulary
         self.tokenizer.save_vocab(vocab_filename)
         
-        print(f"Files created:")
-        print(f"  {model_filename} - model weights")
-        print(f"  {vocab_filename} - vocabulary") 
-        print(f"  {config_filename} - configuration")
+        print(f"Files created in {models_dir}/:")
+        print(f"  {os.path.basename(model_filename)} - model weights")
+        print(f"  {os.path.basename(vocab_filename)} - vocabulary") 
+        print(f"  {os.path.basename(config_filename)} - configuration")
+
+def estimate_model_size(vocab_size, dim, hidden_dim, n_layers, n_heads):
+    """Estimate model parameters and memory usage"""
+    embedding_params = vocab_size * dim
+    layer_params = n_layers * (
+        4 * dim * dim +  # attention: q,k,v,o
+        dim * hidden_dim * 2  # ffn: w1, w2
+    )
+    total_params = embedding_params + layer_params
+    
+    memory_kb = total_params * 4 / 1024  # 4 bytes per float32
+    memory_mb = memory_kb / 1024
+    
+    print(f"Model Size Estimation:")
+    print(f"  Vocab: {vocab_size}, Dim: {dim}, Hidden: {hidden_dim}")
+    print(f"  Layers: {n_layers}, Heads: {n_heads}")
+    print(f"  Parameters: {total_params:,} ({total_params/1000:.1f}K)")
+    print(f"  Memory: {memory_kb:.1f}KB ({memory_mb:.2f}MB)")
+    
+    return total_params, memory_kb
+
+def quick_size_test():
+    """Quick test of different sizes without training"""
+    print("=== Quick Model Size Test ===")
+    print("Testing different configurations...")
+    
+    # Test some intermediate sizes
+    test_configs = [
+        (128, 16, 64, 2, 4),      # ~5K params (chat-5k)
+        (144, 18, 72, 2, 3),      # ~7K params (chat-7k)
+        (160, 20, 80, 2, 4),      # ~10K params (chat-10k)
+        (192, 24, 96, 2, 4),      # ~13K params (chat-13k)
+        (224, 28, 112, 2, 4),     # ~17K params
+        (256, 32, 128, 3, 8),     # ~20K params (assistant-20k)
+        (288, 36, 144, 3, 6),     # ~25K params (assistant-25k)
+        (320, 40, 160, 3, 8),     # ~30K params (assistant-30k)
+        (384, 48, 192, 3, 8),     # ~40K params (assistant-40k)
+        (448, 56, 224, 3, 8),     # ~50K params
+    ]
+    
+    print("\nSize estimates:")
+    for config in test_configs:
+        estimate_model_size(*config)
+        print()
 
 def test_all_sizes():
     """Test training all model sizes"""
     results = {}
     
-    for size_name in ['tiny', 'small', 'medium', 'large']:
+    for size_name in ['story-1k', 'story-2k', 'story-3k', 'chat-5k', 'chat-7k', 'chat-10k', 'chat-13k', 'assistant-20k', 'assistant-25k', 'assistant-30k', 'assistant-40k', 'expert-80k', 'expert-300k']:
         print(f"\n{'='*50}")
         print(f"TESTING {size_name.upper()} MODEL")
         print(f"{'='*50}")
@@ -609,27 +737,605 @@ def test_all_sizes():
     
     for size, result in results.items():
         if 'error' in result:
-            print(f"{size:8s}: FAILED - {result['error']}")
+            print(f"{size:15s}: FAILED - {result['error']}")
         else:
-            print(f"{size:8s}: {result['parameters']:7,} params, "
+            print(f"{size:15s}: {result['parameters']:7,} params, "
                   f"{result['training_time']:5.1f}s, "
                   f"loss={result['final_loss']:.3f}")
+
+def find_rp2040_limit():
+    """Test models sequentially to find RP2040 memory limit"""
+    print("=== Finding RP2040 Memory Limit ===")
+    print("Testing models in order until one fails...")
+    
+    # Test sizes in ascending order of parameters
+    test_sizes = ['story-1k', 'story-2k', 'story-3k', 'chat-5k', 'chat-7k', 'chat-10k', 'chat-13k', 'assistant-20k', 'assistant-25k', 'assistant-30k', 'assistant-40k', 'expert-80k', 'expert-300k']
+    
+    working_models = []
+    failed_models = []
+    
+    for size_name in test_sizes:
+        print(f"\n{'='*50}")
+        print(f"TESTING {size_name.upper()} MODEL")
+        print(f"{'='*50}")
+        
+        try:
+            start_time = time.time()
+            
+            # Create and train model
+            trainer = ScalableTrainer(size_name)
+            trainer.prepare_data()
+            
+            # Quick training (fewer epochs for speed)
+            epochs = max(10, 50 // (trainer.config['dim'] // 8))
+            losses = trainer.train(epochs=epochs, learning_rate=0.01)
+            
+            training_time = time.time() - start_time
+            
+            # Save model
+            trainer.save_model()
+            
+            # Record results
+            param_count = trainer.model._count_parameters()
+            working_models.append({
+                'size': size_name,
+                'parameters': param_count,
+                'training_time': training_time,
+                'final_loss': losses[-1],
+                'config': trainer.config
+            })
+            
+            print(f"✓ {size_name.upper()} SUCCESS: {param_count:,} params, {training_time:.1f}s training")
+            
+        except Exception as e:
+            print(f"✗ {size_name.upper()} FAILED: {e}")
+            failed_models.append({
+                'size': size_name,
+                'error': str(e)
+            })
+            
+            # Ask if user wants to continue testing
+            if input(f"\n{size_name} failed. Continue testing larger models? (y/n): ").lower() != 'y':
+                break
+    
+    # Print summary
+    print(f"\n{'='*50}")
+    print("RP2040 LIMIT TESTING SUMMARY")
+    print(f"{'='*50}")
+    
+    if working_models:
+        print("WORKING MODELS:")
+        for model in working_models:
+            print(f"  ✓ {model['size']:12s}: {model['parameters']:7,} params")
+        
+        largest_working = max(working_models, key=lambda x: x['parameters'])
+        print(f"\nLARGEST WORKING: {largest_working['size']} ({largest_working['parameters']:,} params)")
+    
+    if failed_models:
+        print("\nFAILED MODELS:")
+        for model in failed_models:
+            print(f"  ✗ {model['size']:12s}: {model['error']}")
+    
+    if working_models and failed_models:
+        print(f"\nESTIMATED RP2040 LIMIT: Between {working_models[-1]['parameters']:,} and {failed_models[0]['parameters']:,} parameters")
+
+def custom_model():
+    """Create and train a custom model size"""
+    print("=== Custom Model Creation ===")
+    
+    try:
+        print("Enter model parameters:")
+        vocab_size = int(input("Vocab size (64-1024): "))
+        dim = int(input("Model dimension (8-128): "))
+        hidden_dim = int(input("Hidden dimension (32-512): "))
+        n_layers = int(input("Number of layers (1-6): "))
+        n_heads = int(input("Number of heads (2-32): "))
+        max_seq_len = int(input("Max sequence length (32-128): "))
+        
+        # Validate inputs
+        if not (64 <= vocab_size <= 1024 and 8 <= dim <= 128 and 
+                32 <= hidden_dim <= 512 and 1 <= n_layers <= 6 and 
+                2 <= n_heads <= 32 and 32 <= max_seq_len <= 128):
+            print("Invalid parameters! Using safe defaults.")
+            vocab_size, dim, hidden_dim, n_layers, n_heads, max_seq_len = 128, 16, 64, 2, 4, 48
+        
+        # Estimate size
+        total_params, memory_kb = estimate_model_size(vocab_size, dim, hidden_dim, n_layers, n_heads)
+        
+        if memory_kb > 200:  # Warn if >200KB
+            print(f"⚠️  Warning: This model will use {memory_kb:.1f}KB - may be too large for RP2040!")
+            if input("Continue anyway? (y/n): ").lower() != 'y':
+                return
+        
+        # Create custom config
+        custom_config = {
+            'vocab_size': vocab_size,
+            'dim': dim,
+            'hidden_dim': hidden_dim,
+            'n_layers': n_layers,
+            'n_heads': n_heads,
+            'max_seq_len': max_seq_len,
+            'description': f'~{total_params//1000}K parameters (custom)'
+        }
+        
+        # Create and train
+        print(f"\nCreating custom model with {total_params:,} parameters...")
+        trainer = ScalableTrainer('custom')
+        trainer.config = custom_config
+        trainer.model = ScalableTransformer(custom_config)
+        
+        trainer.prepare_data()
+        epochs = max(20, 100 // max(1, dim // 8))
+        trainer.train(epochs=epochs, learning_rate=0.005)
+        
+        # Create models directory if it doesn't exist
+        models_dir = "models"
+        if not os.path.exists(models_dir):
+            os.makedirs(models_dir)
+            print(f"Created {models_dir} directory")
+        
+        # Save with custom name
+        model_filename = os.path.join(models_dir, f"model_custom_{total_params}p.bin")
+        vocab_filename = os.path.join(models_dir, f"vocab_custom_{total_params}p.bin")
+        config_filename = os.path.join(models_dir, f"config_custom_{total_params}p.json")
+        
+        # Save config
+        with open(config_filename, 'w') as f:
+            json.dump(custom_config, f, indent=2)
+        
+        # Save model weights
+        with open(model_filename, 'wb') as f:
+            header = struct.pack("8I", 
+                               custom_config['vocab_size'], 
+                               custom_config['dim'],
+                               custom_config['hidden_dim'], 
+                               custom_config['n_layers'],
+                               custom_config['n_heads'], 
+                               custom_config['max_seq_len'],
+                               0, 0)
+            f.write(header)
+            
+            f.write(trainer.model.token_embedding.astype(np.float32).tobytes())
+            
+            for layer in trainer.model.layers:
+                f.write(layer['ln1_weight'].astype(np.float32).tobytes())
+                f.write(layer['ln2_weight'].astype(np.float32).tobytes())
+                f.write(layer['wq'].astype(np.float32).tobytes())
+                f.write(layer['wk'].astype(np.float32).tobytes())
+                f.write(layer['wv'].astype(np.float32).tobytes())
+                f.write(layer['wo'].astype(np.float32).tobytes())
+                f.write(layer['w1'].astype(np.float32).tobytes())
+                f.write(layer['w2'].astype(np.float32).tobytes())
+            
+            f.write(trainer.model.final_ln_weight.astype(np.float32).tobytes())
+        
+        # Save vocabulary
+        trainer.tokenizer.save_vocab(vocab_filename)
+        
+        print(f"\nCustom model saved:")
+        print(f"  {os.path.basename(model_filename)}")
+        print(f"  {os.path.basename(vocab_filename)}")
+        print(f"  {os.path.basename(config_filename)}")
+        
+    except ValueError as e:
+        print(f"Invalid input: {e}")
+    except Exception as e:
+        print(f"Error creating custom model: {e}")
+
+def list_models():
+    """List existing models in the models folder"""
+    models_dir = "models"
+    if not os.path.exists(models_dir):
+        print("No models folder found. Train a model first!")
+        return
+    
+    print(f"=== Models in {models_dir}/ ===")
+    
+    # Find all model files
+    model_files = []
+    vocab_files = []
+    config_files = []
+    
+    for filename in os.listdir(models_dir):
+        if filename.startswith("model_") and filename.endswith(".bin"):
+            model_files.append(filename)
+        elif filename.startswith("vocab_") and filename.endswith(".bin"):
+            vocab_files.append(filename)
+        elif filename.startswith("config_") and filename.endswith(".json"):
+            config_files.append(filename)
+    
+    if not model_files:
+        print("No trained models found.")
+        return
+    
+    # Group by model type and extract parameter count
+    model_info = {}
+    for filename in model_files:
+        # Extract model type and parameter count from filename (e.g., "model_story-1k_1024p.bin" -> "story-1k", 1024)
+        parts = filename[6:-4].split('_')  # Remove "model_" prefix and ".bin" suffix, split by '_'
+        if len(parts) >= 2:
+            model_type = parts[0]  # First part is the model type (e.g., "story-1k")
+            param_str = parts[-1]  # Last part should be like "1024p"
+            if param_str.endswith('p'):
+                try:
+                    param_count = int(param_str[:-1])  # Remove 'p' and convert to int
+                    if model_type not in model_info:
+                        model_info[model_type] = {'param_count': param_count, 'files': []}
+                    model_info[model_type]['files'].append(filename)
+                except ValueError:
+                    continue
+    
+    print(f"Found {len(model_files)} model files:")
+    for model_type in sorted(model_info.keys()):
+        info = model_info[model_type]
+        param_count = info['param_count']
+        
+        # Find corresponding files
+        model_file = f"model_{model_type}_{param_count}p.bin"
+        vocab_file = f"vocab_{model_type}_{param_count}p.bin"
+        config_file = f"config_{model_type}_{param_count}p.json"
+        
+        # Check file sizes
+        model_size = os.path.getsize(os.path.join(models_dir, model_file)) if os.path.exists(os.path.join(models_dir, model_file)) else 0
+        vocab_size = os.path.getsize(os.path.join(models_dir, vocab_file)) if os.path.exists(os.path.join(models_dir, vocab_file)) else 0
+        
+        print(f"  {model_type:12s} ({param_count:,} params):")
+        print(f"    Model: {model_file} ({model_size/1024:.1f}KB)")
+        print(f"    Vocab: {vocab_file} ({vocab_size/1024:.1f}KB)")
+        print(f"    Config: {config_file}")
+        print()
+
+def cleanup_models():
+    """Clean up models folder - remove all model files"""
+    models_dir = "models"
+    if not os.path.exists(models_dir):
+        print("No models folder found.")
+        return
+    
+    print(f"=== Cleaning up {models_dir}/ ===")
+    
+    # Count files
+    files = os.listdir(models_dir)
+    model_files = [f for f in files if f.endswith(('.bin', '.json'))]
+    
+    if not model_files:
+        print("No model files to remove.")
+        return
+    
+    print(f"Found {len(model_files)} model files:")
+    
+    # Group files by model type for better display
+    model_groups = {}
+    for filename in sorted(model_files):
+        if filename.startswith('model_') and filename.endswith('.bin'):
+            # Extract model info for grouping
+            parts = filename[6:-4].split('_')
+            if len(parts) >= 2:
+                model_type = parts[0]  # First part is the model type (e.g., "story-1k")
+                param_str = parts[-1]  # Last part should be like "1024p"
+                if param_str.endswith('p'):
+                    try:
+                        param_count = int(param_str[:-1])
+                        if model_type not in model_groups:
+                            model_groups[model_type] = {'param_count': param_count, 'files': []}
+                        model_groups[model_type]['files'].append(filename)
+                    except ValueError:
+                        pass
+    
+    # Display grouped files
+    for model_type in sorted(model_groups.keys()):
+        info = model_groups[model_type]
+        print(f"  {model_type} ({info['param_count']:,} params):")
+        
+        # Find all related files
+        param_str = f"{info['param_count']}p"
+        related_files = [f for f in model_files if f"_{param_str}." in f]
+        
+        for filename in sorted(related_files):
+            filepath = os.path.join(models_dir, filename)
+            size_kb = os.path.getsize(filepath) / 1024
+            print(f"    {filename} ({size_kb:.1f}KB)")
+        print()
+    
+    # Also show any ungrouped files
+    ungrouped = [f for f in model_files if not any(f"_{g['param_count']}p" in f for g in model_groups.values())]
+    if ungrouped:
+        print("Other files:")
+        for filename in sorted(ungrouped):
+            filepath = os.path.join(models_dir, filename)
+            size_kb = os.path.getsize(filepath) / 1024
+            print(f"  {filename} ({size_kb:.1f}KB)")
+        print()
+    
+    confirm = input(f"\nRemove all {len(model_files)} files? (y/N): ").strip().lower()
+    if confirm == 'y':
+        removed_count = 0
+        for filename in model_files:
+            filepath = os.path.join(models_dir, filename)
+            try:
+                os.remove(filepath)
+                removed_count += 1
+                print(f"  Removed: {filename}")
+            except Exception as e:
+                print(f"  Error removing {filename}: {e}")
+        
+        print(f"\nRemoved {removed_count} files.")
+        
+        # Remove empty models directory
+        try:
+            os.rmdir(models_dir)
+            print(f"Removed empty {models_dir}/ directory")
+        except:
+            print(f"Kept {models_dir}/ directory (not empty)")
+    else:
+        print("Cleanup cancelled.")
+
+def show_disk_usage():
+    """Show disk usage of models folder"""
+    models_dir = "models"
+    if not os.path.exists(models_dir):
+        print("No models folder found.")
+        return
+    
+    print(f"=== Disk Usage for {models_dir}/ ===")
+    
+    total_size = 0
+    file_count = 0
+    
+    # Get all files and their sizes
+    files_info = []
+    model_groups = {}
+    
+    for filename in os.listdir(models_dir):
+        filepath = os.path.join(models_dir, filename)
+        if os.path.isfile(filepath):
+            size = os.path.getsize(filepath)
+            total_size += size
+            file_count += 1
+            files_info.append((filename, size))
+            
+            # Group by model type for summary
+            if filename.startswith('model_') and filename.endswith('.bin'):
+                parts = filename[6:-4].split('_')
+                if len(parts) >= 2:
+                    model_type = parts[0]  # First part is the model type (e.g., "story-1k")
+                    param_str = parts[-1]  # Last part should be like "1024p"
+                    if param_str.endswith('p'):
+                        try:
+                            param_count = int(param_str[:-1])
+                            if model_type not in model_groups:
+                                model_groups[model_type] = {'param_count': param_count, 'total_size': 0, 'file_count': 0}
+                            model_groups[model_type]['total_size'] += size
+                            model_groups[model_type]['file_count'] += 1
+                        except ValueError:
+                            pass
+    
+    if not files_info:
+        print("No files found.")
+        return
+    
+    # Sort by size (largest first)
+    files_info.sort(key=lambda x: x[1], reverse=True)
+    
+    print(f"Total files: {file_count}")
+    print(f"Total size: {total_size/1024:.1f}KB ({total_size/(1024*1024):.2f}MB)")
+    print()
+    
+    # Show summary by model type
+    if model_groups:
+        print("Models by parameter count:")
+        for model_type in sorted(model_groups.keys(), key=lambda x: model_groups[x]['param_count']):
+            info = model_groups[model_type]
+            size_kb = info['total_size'] / 1024
+            if size_kb > 1024:
+                size_str = f"{size_kb/1024:.2f}MB"
+            else:
+                size_str = f"{size_kb:.1f}KB"
+            print(f"  {model_type:12s} ({info['param_count']:6,} params): {size_str:>8s}")
+        print()
+    
+    print("All files by size:")
+    for filename, size in files_info:
+        size_kb = size / 1024
+        if size_kb > 1024:
+            size_str = f"{size_kb/1024:.2f}MB"
+        else:
+            size_str = f"{size_kb:.1f}KB"
+        print(f"  {filename:30s}: {size_str:>8s}")
+    
+    print()
+    print(f"Average file size: {total_size/file_count/1024:.1f}KB")
+
+def find_models_by_params(min_params=None, max_params=None):
+    """Find models within a parameter count range"""
+    models_dir = "models"
+    if not os.path.exists(models_dir):
+        print("No models folder found.")
+        return
+    
+    print(f"=== Finding Models by Parameter Count ===")
+    
+    if min_params is None and max_params is None:
+        min_params = int(input("Minimum parameters (or press Enter for no limit): ") or "0")
+        max_params = int(input("Maximum parameters (or press Enter for no limit): ") or "999999")
+    
+    print(f"Searching for models with {min_params:,} to {max_params:,} parameters...")
+    print()
+    
+    # Find all model files
+    model_files = [f for f in os.listdir(models_dir) if f.startswith("model_") and f.endswith(".bin")]
+    
+    if not model_files:
+        print("No model files found.")
+        return
+    
+    # Extract model info and filter by parameter count
+    matching_models = []
+    for filename in model_files:
+        # Handle new naming scheme: model_story-1k_1024p.bin
+        parts = filename[6:-4].split('_')  # Remove "model_" prefix and ".bin" suffix, split by '_'
+        if len(parts) >= 2:
+            # First part is the model type (e.g., "story-1k")
+            model_type = parts[0]
+            # Last part is the parameter count (e.g., "1024p")
+            param_str = parts[-1]
+            
+            if param_str.endswith('p'):
+                try:
+                    param_count = int(param_str[:-1])  # Remove 'p' and convert to int
+                    if min_params <= param_count <= max_params:
+                        # Check if all related files exist
+                        model_file = f"model_{model_type}_{param_count}p.bin"
+                        vocab_file = f"vocab_{model_type}_{param_count}p.bin"
+                        config_file = f"config_{model_type}_{param_count}p.json"
+                        
+                        model_path = os.path.join(models_dir, model_file)
+                        vocab_path = os.path.join(models_dir, vocab_file)
+                        config_path = os.path.join(models_dir, config_file)
+                        
+                        if all(os.path.exists(p) for p in [model_path, vocab_path, config_path]):
+                            model_size = os.path.getsize(model_path)
+                            vocab_size = os.path.getsize(vocab_path)
+                            total_size = model_size + vocab_size
+                            
+                            matching_models.append({
+                                'type': model_type,
+                                'params': param_count,
+                                'model_size': model_size,
+                                'vocab_size': vocab_size,
+                                'total_size': total_size,
+                                'files': [model_file, vocab_file, config_file]
+                            })
+                except ValueError:
+                    continue
+    
+    if not matching_models:
+        print(f"No models found with {min_params:,} to {max_params:,} parameters.")
+        return
+    
+    # Sort by parameter count
+    matching_models.sort(key=lambda x: x['params'])
+    
+    print(f"Found {len(matching_models)} matching models:")
+    print()
+    
+    for model in matching_models:
+        total_kb = model['total_size'] / 1024
+        if total_kb > 1024:
+            size_str = f"{total_kb/1024:.2f}MB"
+        else:
+            size_str = f"{total_kb:.1f}KB"
+        
+        print(f"  {model['type']:12s} ({model['params']:6,} params): {size_str:>8s}")
+        print(f"    Files: {', '.join(model['files'])}")
+        print()
+    
+    # Summary
+    total_params = sum(m['params'] for m in matching_models)
+    total_size = sum(m['total_size'] for m in matching_models)
+    total_kb = total_size / 1024
+    
+    print(f"Summary:")
+    print(f"  Total models: {len(matching_models)}")
+    print(f"  Total parameters: {total_params:,}")
+    print(f"  Total disk usage: {total_kb:.1f}KB ({total_kb/1024:.2f}MB)")
+    
+    # RP2040 recommendations
+    print(f"\nRP2040 Recommendations:")
+    working_models = [m for m in matching_models if m['params'] <= 15000]  # Conservative estimate
+    if working_models:
+        largest_working = max(working_models, key=lambda x: x['params'])
+        print(f"  ✓ Models likely to work: {len(working_models)} (up to {largest_working['params']:,} params)")
+    else:
+        print(f"  ⚠️  No models likely to work on RP2040")
+    
+    risky_models = [m for m in matching_models if 15000 < m['params'] <= 30000]
+    if risky_models:
+        print(f"  ⚠️  Models to test carefully: {len(risky_models)} ({min(m['params'] for m in risky_models):,} - {max(m['params'] for m in risky_models):,} params)")
+    
+    large_models = [m for m in matching_models if m['params'] > 30000]
+    if large_models:
+        print(f"  ✗ Models unlikely to work: {len(large_models)} ({min(m['params'] for m in large_models):,} - {max(m['params'] for m in large_models):,} params)")
+
+def find_rp2040_models():
+    """Quick find models likely to work on RP2040"""
+    print("=== Finding RP2040-Compatible Models ===")
+    print("Searching for models with ≤15K parameters (likely to work)...")
+    find_models_by_params(0, 15000)
+    
+    print(f"\n{'='*50}")
+    print("Searching for models with 15K-30K parameters (test carefully)...")
+    find_models_by_params(15000, 30000)
 
 def main():
     """Main training function"""
     print("=== Scalable Transformer Training ===")
     print("Testing different model sizes for RP2040")
+    print("All models will be saved in the 'models/' folder")
     
     # Ask which size to train
     print("\nAvailable sizes:")
     for name, config in MODEL_CONFIGS.items():
-        print(f"  {name:8s}: {config['description']}")
+        print(f"  {name:15s}: {config['description']}")
+    
+    print("\nOther options:")
+    print("  all      : Train all predefined sizes")
+    print("  limit    : Find RP2040 memory limit")
+    print("  quick    : Quick size estimation")
+    print("  custom   : Create custom model size")
+    print("  test     : Access testing options")
+    print("  list     : List existing models")
+    print("  test_all : Test all sizes (alias for 'all')")
+    print("  cleanup  : Clean up all model files")
+    print("  disk     : Show disk usage of models folder")
+    print("  find_params : Find models by parameter count range")
+    print("  rp2040_quick : Quick find models likely to work on RP2040")
     
     # For automated testing, train all sizes
-    choice = input("\nEnter size (tiny/small/medium/large/xlarge) or 'all': ").strip().lower()
+    choice = input("\nEnter size or option: ").strip().lower()
     
     if choice == 'all':
         test_all_sizes()
+    elif choice == 'limit':
+        find_rp2040_limit()
+    elif choice == 'quick':
+        quick_size_test()
+    elif choice == 'custom':
+        custom_model()
+    elif choice == 'test':
+        print("Available test options:")
+        print("  - 'limit': Find RP2040 memory limit")
+        print("  - 'quick': Quick size estimation")
+        print("  - 'all': Train all predefined sizes")
+        print("  - Or enter a specific size name")
+        test_choice = input("Enter test option: ").strip().lower()
+        if test_choice == 'limit':
+            find_rp2040_limit()
+        elif test_choice == 'quick':
+            quick_size_test()
+        elif test_choice == 'all':
+            test_all_sizes()
+        elif test_choice in MODEL_CONFIGS:
+            trainer = ScalableTrainer(test_choice)
+            trainer.prepare_data()
+            epochs = max(50, 200 // max(1, trainer.config['dim'] // 16))
+            trainer.train(epochs=epochs, learning_rate=0.005)
+            trainer.save_model()
+            print(f"\n{test_choice.upper()} model training complete!")
+        else:
+            print("Invalid test option")
+    elif choice == 'list':
+        list_models()
+    elif choice == 'test_all':
+        test_all_sizes()
+    elif choice == 'cleanup':
+        cleanup_models()
+    elif choice == 'disk':
+        show_disk_usage()
+    elif choice == 'find_params':
+        find_models_by_params()
+    elif choice == 'rp2040_quick':
+        find_rp2040_models()
     elif choice in MODEL_CONFIGS:
         trainer = ScalableTrainer(choice)
         trainer.prepare_data()

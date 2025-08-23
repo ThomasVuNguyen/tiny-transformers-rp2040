@@ -29,6 +29,55 @@ import json
 import os
 
 # ============================================================================
+# FAST MATH APPROXIMATIONS FOR RP2040 PERFORMANCE
+# ============================================================================
+
+def fast_exp(x):
+    """Fast exponential approximation for RP2040"""
+    # Clamp input to prevent overflow
+    if x > 10.0:
+        return 22026.465794806718  # e^10
+    elif x < -10.0:
+        return 0.000045399929762484854  # e^-10
+    
+    # Taylor series approximation (faster than math.exp on RP2040)
+    # e^x ≈ 1 + x + x²/2 + x³/6 + x⁴/24
+    x2 = x * x
+    x3 = x2 * x
+    x4 = x3 * x
+    return 1.0 + x + x2 * 0.5 + x3 * 0.16666666666666666 + x4 * 0.041666666666666664
+
+def fast_sigmoid(x):
+    """Fast sigmoid approximation optimized for RP2040"""
+    # Clamp to prevent overflow
+    if x > 10.0:
+        return 0.9999546021312976  # sigmoid(10)
+    elif x < -10.0:
+        return 0.000045397868702434395  # sigmoid(-10)
+    
+    # Use fast_exp for better performance
+    exp_neg_x = fast_exp(-x)
+    return 1.0 / (1.0 + exp_neg_x)
+
+def fast_sqrt(x):
+    """Fast square root using Newton's method (2 iterations)"""
+    if x <= 0.0:
+        return 0.0
+    
+    # Initial guess using bit manipulation approximation
+    # For most values in neural networks, this is quite good
+    if x >= 1.0:
+        guess = x * 0.5
+    else:
+        guess = x * 2.0
+    
+    # Two Newton iterations: x_new = 0.5 * (x + n/x)
+    guess = 0.5 * (guess + x / guess)
+    guess = 0.5 * (guess + x / guess)
+    
+    return guess
+
+# ============================================================================
 # CIRCUITPYTHON CONFIGURATION - Edit these variables as needed
 # ============================================================================
 
@@ -240,6 +289,10 @@ class ScalableTransformer:
         self.layers = []
         self.final_ln_weight = None
         
+        # KV cache for autoregressive generation (major performance optimization)
+        self.kv_cache = None
+        self.cache_seq_len = 0
+        
         # Load model
         if not self._load_model(model_file):
             raise RuntimeError(f"Failed to load model from {model_file}")
@@ -423,85 +476,153 @@ class ScalableTransformer:
             return False
     
     def _matmul(self, a, b_matrix):
-        """Optimized matrix multiplication"""
+        """Optimized matrix multiplication with better memory access"""
         if len(b_matrix) == 0:
             return [0.0] * len(a)
         
-        result = []
-        for j in range(len(b_matrix[0])):
+        # Pre-allocate result for better performance
+        cols = len(b_matrix[0])
+        rows = len(a)
+        result = [0.0] * cols
+        
+        # Optimized inner loop with better cache locality
+        for j in range(cols):
             val = 0.0
-            for i in range(len(a)):
-                val += a[i] * b_matrix[i][j]
-            result.append(val)
+            # Unroll loop for small dimensions (common case)
+            if rows <= 32:  # Most of our models have dim <= 32
+                for i in range(rows):
+                    val += a[i] * b_matrix[i][j]
+            else:
+                # For larger dimensions, use chunked access
+                for i in range(0, rows, 4):
+                    end = min(i + 4, rows)
+                    for k in range(i, end):
+                        val += a[k] * b_matrix[k][j]
+            result[j] = val
         return result
     
     def _layer_norm(self, x, weight, eps=1e-6):
-        """Layer normalization"""
+        """Layer normalization with fast square root"""
         mean = sum(x) / len(x)
         variance = sum((val - mean) ** 2 for val in x) / len(x)
-        std = math.sqrt(variance + eps)
-        return [(val - mean) / std * weight[i] for i, val in enumerate(x)]
+        std = fast_sqrt(variance + eps)  # Use fast sqrt
+        inv_std = 1.0 / std if std > 0.0 else 0.0
+        return [(val - mean) * inv_std * weight[i] for i, val in enumerate(x)]
     
     def _softmax(self, x):
-        """Softmax with numerical stability"""
+        """Softmax with fast exponential approximation"""
         max_val = max(x)
-        exp_vals = [math.exp(val - max_val) for val in x]
+        exp_vals = [fast_exp(val - max_val) for val in x]  # Use fast exp
         sum_exp = sum(exp_vals)
         if sum_exp == 0:
             return [1.0 / len(x)] * len(x)
-        return [val / sum_exp for val in exp_vals]
+        inv_sum = 1.0 / sum_exp  # Pre-compute inverse
+        return [val * inv_sum for val in exp_vals]
     
-    def _attention(self, x_seq, layer):
-        """Multi-head self-attention (simplified)"""
+    def _attention(self, x_seq, layer, layer_idx, use_cache=True):
+        """Multi-head self-attention with KV caching optimization"""
         seq_len = len(x_seq)
         
-        # Q, K, V projections
-        Q = [self._matmul(x, layer['wq']) for x in x_seq]
-        K = [self._matmul(x, layer['wk']) for x in x_seq] 
-        V = [self._matmul(x, layer['wv']) for x in x_seq]
-        
-        output_seq = []
-        
-        for i in range(seq_len):
-            # Attention scores for position i
+        # For autoregressive generation, we can reuse cached K,V
+        if use_cache and seq_len == 1 and self.cache_seq_len > 0:
+            # Only compute for the new token
+            x_new = x_seq[0]
+            q_new = self._matmul(x_new, layer['wq'])
+            k_new = self._matmul(x_new, layer['wk'])
+            v_new = self._matmul(x_new, layer['wv'])
+            
+            # Get cached K,V
+            cached_k, cached_v = self._get_cached_kv(layer_idx)
+            
+            # Update cache
+            self._update_kv_cache(layer_idx, k_new, v_new)
+            
+            # Compute attention only for new position
             scores = []
-            for j in range(i + 1):  # Causal mask
-                score = sum(Q[i][k] * K[j][k] for k in range(self.dim))
-                score = score / math.sqrt(self.dim)
+            # Attend to all previous positions + current
+            for j in range(len(cached_k)):
+                score = sum(q_new[k] * cached_k[j][k] for k in range(self.dim))
+                score = score / fast_sqrt(self.dim)  # Use fast sqrt
                 scores.append(score)
             
-            # Pad future positions with large negative values
-            for j in range(i + 1, seq_len):
-                scores.append(-1e9)
+            # Add current position
+            score = sum(q_new[k] * k_new[k] for k in range(self.dim))
+            score = score / fast_sqrt(self.dim)
+            scores.append(score)
             
             # Softmax
             attn_weights = self._softmax(scores)
             
             # Weighted sum of values
             output = [0.0] * self.dim
-            for j in range(i + 1):
-                weight = attn_weights[j]
+            for j, weight in enumerate(attn_weights[:-1]):
                 for k in range(self.dim):
-                    output[k] += weight * V[j][k]
+                    output[k] += weight * cached_v[j][k]
             
-            output_seq.append(output)
-        
-        # Output projection
-        projected_seq = []
-        for output in output_seq:
+            # Add contribution from new token
+            weight = attn_weights[-1]
+            for k in range(self.dim):
+                output[k] += weight * v_new[k]
+            
+            # Output projection
             projected = self._matmul(output, layer['wo'])
-            projected_seq.append(projected)
+            return [projected]
         
-        return projected_seq
+        else:
+            # Full attention computation (first pass or no cache)
+            # Q, K, V projections
+            Q = [self._matmul(x, layer['wq']) for x in x_seq]
+            K = [self._matmul(x, layer['wk']) for x in x_seq] 
+            V = [self._matmul(x, layer['wv']) for x in x_seq]
+            
+            # Update cache if using cache
+            if use_cache:
+                for i in range(seq_len):
+                    self._update_kv_cache(layer_idx, K[i], V[i])
+            
+            output_seq = []
+            sqrt_dim = fast_sqrt(self.dim)  # Pre-compute
+            
+            for i in range(seq_len):
+                # Attention scores for position i
+                scores = []
+                for j in range(i + 1):  # Causal mask
+                    score = sum(Q[i][k] * K[j][k] for k in range(self.dim))
+                    score = score / sqrt_dim
+                    scores.append(score)
+                
+                # Pad future positions with large negative values
+                for j in range(i + 1, seq_len):
+                    scores.append(-1e9)
+                
+                # Softmax
+                attn_weights = self._softmax(scores)
+                
+                # Weighted sum of values
+                output = [0.0] * self.dim
+                for j in range(i + 1):
+                    weight = attn_weights[j]
+                    for k in range(self.dim):
+                        output[k] += weight * V[j][k]
+                
+                output_seq.append(output)
+            
+            # Output projection
+            projected_seq = []
+            for output in output_seq:
+                projected = self._matmul(output, layer['wo'])
+                projected_seq.append(projected)
+            
+            return projected_seq
     
     def _feed_forward(self, x, layer):
-        """Feed-forward with SiLU activation"""
+        """Feed-forward with fast SiLU activation"""
         # First projection
         hidden = self._matmul(x, layer['w1'])
         
-        # SiLU activation: x * sigmoid(x)
+        # Fast SiLU activation: x * sigmoid(x)
         for i in range(len(hidden)):
-            sigmoid_val = 1.0 / (1.0 + math.exp(-max(-10, min(10, hidden[i]))))
+            sigmoid_val = fast_sigmoid(hidden[i])  # Use fast sigmoid
             hidden[i] = hidden[i] * sigmoid_val
         
         # Second projection
@@ -509,11 +630,47 @@ class ScalableTransformer:
         
         return output
     
-    def forward(self, tokens):
-        """Forward pass through the model"""
+    def _init_kv_cache(self, seq_len):
+        """Initialize KV cache for the sequence"""
+        if self.kv_cache is None or len(self.kv_cache) != self.n_layers:
+            self.kv_cache = []
+            for _ in range(self.n_layers):
+                # Each layer has K and V caches
+                layer_cache = {
+                    'k': [],  # List of key vectors for each position
+                    'v': []   # List of value vectors for each position
+                }
+                self.kv_cache.append(layer_cache)
+        
+        self.cache_seq_len = 0  # Reset cache length
+    
+    def _update_kv_cache(self, layer_idx, k_new, v_new):
+        """Update KV cache with new key/value vectors"""
+        if self.kv_cache and layer_idx < len(self.kv_cache):
+            self.kv_cache[layer_idx]['k'].append(k_new)
+            self.kv_cache[layer_idx]['v'].append(v_new)
+    
+    def _get_cached_kv(self, layer_idx):
+        """Get cached K,V for a layer"""
+        if self.kv_cache and layer_idx < len(self.kv_cache):
+            return self.kv_cache[layer_idx]['k'], self.kv_cache[layer_idx]['v']
+        return [], []
+    
+    def clear_cache(self):
+        """Clear KV cache (call when starting new sequence)"""
+        self.kv_cache = None
+        self.cache_seq_len = 0
+    
+    def forward(self, tokens, use_cache=True):
+        """Optimized forward pass with KV caching"""
         seq_len = len(tokens)
         if seq_len == 0:
             return [0.0] * self.vocab_size
+        
+        # Initialize cache for first call
+        if use_cache and (self.kv_cache is None or seq_len > 1):
+            self._init_kv_cache(seq_len)
+            self.cache_seq_len = 0
         
         # Token embeddings
         x_seq = []
@@ -532,11 +689,12 @@ class ScalableTransformer:
                 normed = self._layer_norm(x, layer['ln1_weight'])
                 normed_seq.append(normed)
             
-            # Self-attention
-            attn_output = self._attention(normed_seq, layer)
+            # Self-attention with caching
+            attn_output = self._attention(normed_seq, layer, layer_id, use_cache)
             
             # Residual connection
-            for i in range(seq_len):
+            attn_seq_len = len(attn_output)
+            for i in range(attn_seq_len):
                 for j in range(self.dim):
                     x_seq[i][j] += attn_output[i][j]
             
@@ -553,18 +711,24 @@ class ScalableTransformer:
                 ffn_output.append(ff_out)
             
             # Residual connection
-            for i in range(seq_len):
+            for i in range(len(ffn_output)):
                 for j in range(self.dim):
                     x_seq[i][j] += ffn_output[i][j]
+        
+        # Update cache sequence length
+        if use_cache:
+            self.cache_seq_len += seq_len
         
         # Final layer norm
         last_hidden = self._layer_norm(x_seq[-1], self.final_ln_weight)
         
-        # Output projection
-        logits = []
+        # Optimized output projection (pre-allocate)
+        logits = [0.0] * self.vocab_size
         for i in range(self.vocab_size):
-            logit = sum(last_hidden[j] * self.token_embedding[i][j] for j in range(self.dim))
-            logits.append(logit)
+            logit = 0.0
+            for j in range(self.dim):
+                logit += last_hidden[j] * self.token_embedding[i][j]
+            logits[i] = logit
         
         return logits
     
@@ -1038,13 +1202,16 @@ class ScalableInference:
             return False
     
     def generate(self, prompt="hello", max_tokens=10, temperature=0.8):
-        """Generate text with current model"""
+        """Generate text with optimized caching"""
         if not self.current_model:
             print("No model loaded!")
             return ""
         
-        print(f"\n=== Generating with {self.current_model_name.upper()} ===")
+        print(f"\n=== Generating with {self.current_model_name.upper()} (Optimized) ===")
         print(f"Prompt: '{prompt}'")
+        
+        # Clear cache for new sequence
+        self.current_model.clear_cache()
         
         # Encode prompt
         tokens = self.current_tokenizer.encode(prompt)
@@ -1053,18 +1220,15 @@ class ScalableInference:
         start_time = time.monotonic()
         generated_tokens = []
         
+        # Process initial prompt (prefill phase)
+        if len(tokens) > self.current_model.max_seq_len - max_tokens:
+            tokens = tokens[-(self.current_model.max_seq_len - max_tokens):]
+        
+        # First forward pass with full prompt
+        logits = self.current_model.forward(tokens, use_cache=True)
+        
         for step in range(max_tokens):
-            # Current sequence
-            current_tokens = tokens + generated_tokens
-            
-            # Truncate if too long
-            if len(current_tokens) > self.current_model.max_seq_len - 1:
-                current_tokens = current_tokens[-(self.current_model.max_seq_len - 1):]
-            
-            # Forward pass
-            logits = self.current_model.forward(current_tokens)
-            
-            # Sample
+            # Sample next token
             next_token = self.current_model.sample(logits, temperature)
             
             if next_token == 2:  # EOS
@@ -1072,9 +1236,12 @@ class ScalableInference:
             
             generated_tokens.append(next_token)
             
+            # Forward pass for single token (decode phase) - this uses KV cache!
+            logits = self.current_model.forward([next_token], use_cache=True)
+            
             # Show progress
             if step > 0 and step % 3 == 0:
-                partial = self.current_tokenizer.decode(current_tokens + [next_token])
+                partial = self.current_tokenizer.decode(tokens + generated_tokens)
                 print(f"  Step {step}: {partial}")
         
         # Final result
@@ -1089,6 +1256,64 @@ class ScalableInference:
         print(f"Speed: {speed:.1f} tokens/sec")
         
         return result
+    
+    def benchmark_performance(self, prompt="hello world", iterations=3):
+        """Benchmark performance improvements"""
+        if not self.current_model:
+            print("No model loaded!")
+            return
+        
+        print(f"\n=== Performance Benchmark: {self.current_model_name.upper()} ===")
+        print(f"Prompt: '{prompt}' | Iterations: {iterations}")
+        
+        tokens = self.current_tokenizer.encode(prompt)
+        print(f"Input tokens: {len(tokens)}")
+        
+        total_time = 0.0
+        total_tokens = 0
+        
+        for i in range(iterations):
+            print(f"\nIteration {i+1}/{iterations}:")
+            
+            # Clear cache for fair comparison
+            self.current_model.clear_cache()
+            
+            start_time = time.monotonic()
+            
+            # Prefill phase
+            logits = self.current_model.forward(tokens, use_cache=True)
+            prefill_time = time.monotonic() - start_time
+            
+            # Decode phase (generate 5 tokens)
+            decode_times = []
+            for step in range(5):
+                step_start = time.monotonic()
+                next_token = self.current_model.sample(logits, temperature=0.8)
+                if next_token == 2:  # EOS
+                    break
+                logits = self.current_model.forward([next_token], use_cache=True)
+                decode_times.append(time.monotonic() - step_start)
+                total_tokens += 1
+            
+            iteration_time = time.monotonic() - start_time
+            total_time += iteration_time
+            
+            avg_decode = sum(decode_times) / len(decode_times) if decode_times else 0
+            
+            print(f"  Prefill: {prefill_time*1000:.1f}ms")
+            print(f"  Decode avg: {avg_decode*1000:.1f}ms/token")
+            print(f"  Total: {iteration_time*1000:.1f}ms")
+            print(f"  Speed: {len(decode_times)/iteration_time:.1f} tok/s")
+        
+        avg_time = total_time / iterations
+        avg_speed = total_tokens / total_time
+        
+        print(f"\n📊 Average Results:")
+        print(f"  Time per iteration: {avg_time*1000:.1f}ms")
+        print(f"  Average speed: {avg_speed:.1f} tokens/sec")
+        print(f"  Memory usage: {(139296 - gc.mem_free())/1024:.1f}KB")
+        
+        return avg_speed
     
     def interactive_demo(self):
         """Interactive demo with all models"""

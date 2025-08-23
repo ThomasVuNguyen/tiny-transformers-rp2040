@@ -1,0 +1,9 @@
+{
+  "vocab_size": 89,
+  "dim": 8,
+  "hidden_dim": 34,
+  "n_layers": 1,
+  "n_heads": 5,
+  "max_seq_len": 36,
+  "description": "3.0K parameters - Fibonacci ratios"
+}

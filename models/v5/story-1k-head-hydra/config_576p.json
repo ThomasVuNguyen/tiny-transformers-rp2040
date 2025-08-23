@@ -1,0 +1,9 @@
+{
+  "vocab_size": 24,
+  "dim": 6,
+  "hidden_dim": 24,
+  "n_layers": 1,
+  "n_heads": 6,
+  "max_seq_len": 32,
+  "description": "1.2K parameters - Multi-head hydra"
+}

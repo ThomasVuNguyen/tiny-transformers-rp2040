@@ -1,0 +1,9 @@
+{
+  "vocab_size": 32,
+  "dim": 16,
+  "hidden_dim": 64,
+  "n_layers": 1,
+  "n_heads": 4,
+  "max_seq_len": 36,
+  "description": "3.1K parameters - Tiny vocab, big model"
+}

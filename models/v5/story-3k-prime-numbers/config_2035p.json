@@ -1,0 +1,9 @@
+{
+  "vocab_size": 67,
+  "dim": 11,
+  "hidden_dim": 37,
+  "n_layers": 1,
+  "n_heads": 3,
+  "max_seq_len": 36,
+  "description": "2.9K parameters - Prime number architecture"
+}

@@ -1,0 +1,9 @@
+{
+  "vocab_size": 32,
+  "dim": 6,
+  "hidden_dim": 24,
+  "n_layers": 4,
+  "n_heads": 2,
+  "max_seq_len": 36,
+  "description": "2.9K parameters - Quad layer"
+}

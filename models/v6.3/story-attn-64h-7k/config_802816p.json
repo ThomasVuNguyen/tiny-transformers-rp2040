@@ -1,0 +1,9 @@
+{
+  "vocab_size": 64,
+  "dim": 256,
+  "hidden_dim": 1024,
+  "n_layers": 1,
+  "n_heads": 64,
+  "max_seq_len": 44,
+  "description": "7.0K parameters - ULTRA 64 ATTENTION HEADS (beyond insane!)"
+}

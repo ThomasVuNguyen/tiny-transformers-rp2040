@@ -4343,12 +4343,12 @@ def main():
     print("  ffn_test : Test ULTRA-EXTREME FFN RATIO models (Never attempted!)")
     print("  attn_test : Test ATTENTION HEAD EXTREMES (32+ heads) (Never attempted!)")
     
-            print("\n🚀 PARALLEL TESTING (MULTI-CORE SPEEDUP!):")
-        print("  ultra_1d_parallel : Test ULTRA-EXTREME 1D/2D/3D models with parallel processing")
-        print("  ffn_test_parallel : Test ULTRA-EXTREME FFN RATIO models with parallel processing")
-        print("  attn_test_parallel : Test ATTENTION HEAD EXTREMES (32+ heads) with parallel processing")
-        print("  all_parallel : Test ALL variants simultaneously with maximum parallel processing!")
-        print("  Expected speedup: 4-8x faster on typical computers!")
+    print("\n🚀 PARALLEL TESTING (MULTI-CORE SPEEDUP!):")
+    print("  ultra_1d_parallel : Test ULTRA-EXTREME 1D/2D/3D models with parallel processing")
+    print("  ffn_test_parallel : Test ULTRA-EXTREME FFN RATIO models with parallel processing")
+    print("  attn_test_parallel : Test ATTENTION HEAD EXTREMES (32+ heads) with parallel processing")
+    print("  all_parallel : Test ALL variants simultaneously with maximum parallel processing!")
+    print("  Expected speedup: 4-8x faster on typical computers!")
     
     print("\nOther options:")
     print("  all      : Train all predefined sizes")
@@ -4392,15 +4392,15 @@ def main():
     elif choice == 'ultra_1d_parallel':
         print("🚀 Using parallel processing for ultra-extreme 1D/2D/3D models!")
         test_ultra_extreme_1d()  # Already parallel now
-            elif choice == 'ffn_test_parallel':
-            print("🚀 Using parallel processing for ultra-extreme FFN ratio models!")
-            test_ffn_extremes()  # Already parallel now
-        elif choice == 'attn_test_parallel':
-            print("🚀 Using parallel processing for ATTENTION HEAD EXTREMES (32+ heads)!")
-            test_attention_extremes()  # Phase 3: Ultra-wide attention!
-        elif choice == 'all_parallel':
-            print("🚀 MASSIVE PARALLEL TESTING - Using ALL CPU cores!")
-            test_all_variants_parallel()
+    elif choice == 'ffn_test_parallel':
+        print("🚀 Using parallel processing for ultra-extreme FFN ratio models!")
+        test_ffn_extremes()  # Already parallel now
+    elif choice == 'attn_test_parallel':
+        print("🚀 Using parallel processing for ATTENTION HEAD EXTREMES (32+ heads)!")
+        test_attention_extremes()  # Phase 3: Ultra-wide attention!
+    elif choice == 'all_parallel':
+        print("🚀 MASSIVE PARALLEL TESTING - Using ALL CPU cores!")
+        test_all_variants_parallel()
     elif choice == 'limit':
         find_rp2040_limit()
     elif choice == 'quick':

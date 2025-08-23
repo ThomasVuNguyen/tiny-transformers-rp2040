@@ -1,0 +1,9 @@
+{
+  "vocab_size": 256,
+  "dim": 128,
+  "hidden_dim": 1024,
+  "n_layers": 1,
+  "n_heads": 32,
+  "max_seq_len": 44,
+  "description": "7.0K parameters - ULTRA 32 ATTENTION HEADS (ultra-wide attention!)"
+}

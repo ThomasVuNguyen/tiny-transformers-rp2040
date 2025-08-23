@@ -1,0 +1,9 @@
+{
+  "vocab_size": 32,
+  "dim": 40,
+  "hidden_dim": 160,
+  "n_layers": 1,
+  "n_heads": 40,
+  "max_seq_len": 52,
+  "description": "10.0K parameters - Ultra wide + ultra heads (40d, 40 heads!)"
+}

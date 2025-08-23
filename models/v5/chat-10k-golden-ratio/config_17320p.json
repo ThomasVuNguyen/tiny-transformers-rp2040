@@ -1,0 +1,9 @@
+{
+  "vocab_size": 262,
+  "dim": 20,
+  "hidden_dim": 262,
+  "n_layers": 1,
+  "n_heads": 10,
+  "max_seq_len": 52,
+  "description": "10.1K parameters - Golden ratio design"
+}

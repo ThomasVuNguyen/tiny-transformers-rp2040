@@ -1,0 +1,9 @@
+{
+  "vocab_size": 160,
+  "dim": 18,
+  "hidden_dim": 72,
+  "n_layers": 1,
+  "n_heads": 1,
+  "max_seq_len": 44,
+  "description": "7.2K parameters - Single attention head"
+}

@@ -1,0 +1,9 @@
+{
+  "vocab_size": 1536,
+  "dim": 3,
+  "hidden_dim": 12,
+  "n_layers": 1,
+  "n_heads": 1,
+  "max_seq_len": 52,
+  "description": "10.0K parameters - Ultra narrow + huge vocab (3d!)"
+}

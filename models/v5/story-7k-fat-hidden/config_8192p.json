@@ -1,0 +1,9 @@
+{
+  "vocab_size": 192,
+  "dim": 16,
+  "hidden_dim": 128,
+  "n_layers": 1,
+  "n_heads": 4,
+  "max_seq_len": 44,
+  "description": "7.0K parameters - Fat hidden layer"
+}

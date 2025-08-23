@@ -1,0 +1,9 @@
+{
+  "vocab_size": 384,
+  "dim": 18,
+  "hidden_dim": 36,
+  "n_layers": 1,
+  "n_heads": 4,
+  "max_seq_len": 44,
+  "description": "7.0K parameters - Thin hidden layer"
+}

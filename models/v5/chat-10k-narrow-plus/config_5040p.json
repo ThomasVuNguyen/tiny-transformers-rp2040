@@ -1,0 +1,9 @@
+{
+  "vocab_size": 384,
+  "dim": 10,
+  "hidden_dim": 40,
+  "n_layers": 1,
+  "n_heads": 5,
+  "max_seq_len": 52,
+  "description": "10.0K parameters - Narrow plus (10d!)"
+}

@@ -1,0 +1,9 @@
+{
+  "vocab_size": 96,
+  "dim": 12,
+  "hidden_dim": 96,
+  "n_layers": 1,
+  "n_heads": 12,
+  "max_seq_len": 40,
+  "description": "5.0K parameters - Speed demon (heads + fat FFN)"
+}

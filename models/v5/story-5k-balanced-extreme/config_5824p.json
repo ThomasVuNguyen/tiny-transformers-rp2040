@@ -1,0 +1,9 @@
+{
+  "vocab_size": 192,
+  "dim": 14,
+  "hidden_dim": 84,
+  "n_layers": 1,
+  "n_heads": 14,
+  "max_seq_len": 40,
+  "description": "5.1K parameters - Balanced extreme"
+}

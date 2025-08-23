@@ -1,0 +1,9 @@
+{
+  "vocab_size": 64,
+  "dim": 18,
+  "hidden_dim": 72,
+  "n_layers": 1,
+  "n_heads": 36,
+  "max_seq_len": 44,
+  "description": "7.0K parameters - Attention monster (36 heads!)"
+}

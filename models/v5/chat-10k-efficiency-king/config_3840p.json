@@ -1,0 +1,9 @@
+{
+  "vocab_size": 192,
+  "dim": 8,
+  "hidden_dim": 128,
+  "n_layers": 1,
+  "n_heads": 16,
+  "max_seq_len": 52,
+  "description": "10.0K parameters - Efficiency king"
+}

@@ -1,0 +1,9 @@
+{
+  "vocab_size": 16,
+  "dim": 2,
+  "hidden_dim": 128,
+  "n_layers": 1,
+  "n_heads": 1,
+  "max_seq_len": 52,
+  "description": "10.0K parameters - Ultra fat FFN (2d, 64x ratio!)"
+}

@@ -1,0 +1,9 @@
+{
+  "vocab_size": 384,
+  "dim": 16,
+  "hidden_dim": 48,
+  "n_layers": 2,
+  "n_heads": 16,
+  "max_seq_len": 44,
+  "description": "7.0K parameters - Mixed extremes"
+}

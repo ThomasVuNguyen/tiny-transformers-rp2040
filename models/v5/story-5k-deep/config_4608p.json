@@ -1,0 +1,9 @@
+{
+  "vocab_size": 96,
+  "dim": 12,
+  "hidden_dim": 48,
+  "n_layers": 2,
+  "n_heads": 3,
+  "max_seq_len": 40,
+  "description": "4.9K parameters - Deep 5K model"
+}

@@ -1,0 +1,9 @@
+{
+  "vocab_size": 64,
+  "dim": 10,
+  "hidden_dim": 40,
+  "n_layers": 5,
+  "n_heads": 2,
+  "max_seq_len": 52,
+  "description": "10.0K parameters - Layer tower"
+}

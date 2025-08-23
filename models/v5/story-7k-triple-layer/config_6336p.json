@@ -1,0 +1,9 @@
+{
+  "vocab_size": 96,
+  "dim": 12,
+  "hidden_dim": 48,
+  "n_layers": 3,
+  "n_heads": 3,
+  "max_seq_len": 44,
+  "description": "7.0K parameters - Triple layer"
+}

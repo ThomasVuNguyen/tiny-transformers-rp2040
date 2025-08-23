@@ -1,0 +1,9 @@
+{
+  "vocab_size": 128,
+  "dim": 12,
+  "hidden_dim": 192,
+  "n_layers": 1,
+  "n_heads": 3,
+  "max_seq_len": 44,
+  "description": "7.0K parameters - Mega hidden layer"
+}

@@ -1,0 +1,9 @@
+{
+  "vocab_size": 48,
+  "dim": 6,
+  "hidden_dim": 384,
+  "n_layers": 1,
+  "n_heads": 1,
+  "max_seq_len": 44,
+  "description": "7.0K parameters - FFN beast (64x ratio!)"
+}

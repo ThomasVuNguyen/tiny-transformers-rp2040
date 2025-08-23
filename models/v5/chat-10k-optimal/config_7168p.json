@@ -1,0 +1,9 @@
+{
+  "vocab_size": 128,
+  "dim": 16,
+  "hidden_dim": 128,
+  "n_layers": 1,
+  "n_heads": 8,
+  "max_seq_len": 52,
+  "description": "10.0K parameters - Optimal based on 7K findings"
+}

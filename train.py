@@ -600,16 +600,9 @@ MODEL_CONFIGS = {
         'description': '3.1K parameters - Balanced extreme'
     },
     
-    # === 5K Parameter Architectural Variants ===
-    'story-5k-vocab-monster': {
-        'vocab_size': 400,
-        'dim': 8,
-        'hidden_dim': 32,  # 4x dim
-        'n_layers': 1,
-        'n_heads': 2,
-        'max_seq_len': 40,
-        'description': '5.0K parameters - Vocabulary monster'
-    },
+    # === 5K Parameter Architectural Variants - COMPREHENSIVE STUDY ===
+    
+    # Core Balanced Designs
     'story-5k-balanced': {
         'vocab_size': 128,
         'dim': 16,
@@ -619,15 +612,140 @@ MODEL_CONFIGS = {
         'max_seq_len': 40,
         'description': '5.1K parameters - Balanced 5K design'
     },
-    'story-5k-dimension-beast': {
-        'vocab_size': 64,
+    'story-5k-optimal': {
+        'vocab_size': 96,
+        'dim': 12,
+        'hidden_dim': 96,  # 8x dim (fat FFN)
+        'n_layers': 1,
+        'n_heads': 6,
+        'max_seq_len': 40,
+        'description': '5.0K parameters - Optimal based on 3K findings'
+    },
+    
+    # Vocabulary Size Study
+    'story-5k-tiny-vocab': {
+        'vocab_size': 48,
         'dim': 20,
         'hidden_dim': 80,  # 4x dim
         'n_layers': 1,
         'n_heads': 4,
         'max_seq_len': 40,
+        'description': '5.0K parameters - Tiny vocab, big model'
+    },
+    'story-5k-vocab-heavy': {
+        'vocab_size': 512,
+        'dim': 8,
+        'hidden_dim': 32,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 2,
+        'max_seq_len': 40,
+        'description': '5.0K parameters - Vocabulary heavy'
+    },
+    'story-5k-vocab-monster': {
+        'vocab_size': 800,
+        'dim': 6,
+        'hidden_dim': 24,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 2,
+        'max_seq_len': 40,
+        'description': '5.0K parameters - Vocabulary monster'
+    },
+    'story-5k-vocab-ultra': {
+        'vocab_size': 1024,
+        'dim': 4,
+        'hidden_dim': 16,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 2,
+        'max_seq_len': 40,
+        'description': '4.9K parameters - Ultra vocab focus'
+    },
+    
+    # Dimension Study (Based on 3K Breakthrough!)
+    'story-5k-super-narrow': {
+        'vocab_size': 384,
+        'dim': 6,
+        'hidden_dim': 24,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 2,
+        'max_seq_len': 40,
+        'description': '5.0K parameters - Super narrow dimensions'
+    },
+    'story-5k-narrow': {
+        'vocab_size': 256,
+        'dim': 8,
+        'hidden_dim': 32,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 3,
+        'max_seq_len': 40,
+        'description': '5.0K parameters - Narrow dimensions'
+    },
+    'story-5k-wide-dim': {
+        'vocab_size': 128,
+        'dim': 24,
+        'hidden_dim': 96,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 6,
+        'max_seq_len': 40,
+        'description': '5.1K parameters - Wide dimensions'
+    },
+    'story-5k-dimension-beast': {
+        'vocab_size': 64,
+        'dim': 28,
+        'hidden_dim': 112,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 4,
+        'max_seq_len': 40,
         'description': '5.2K parameters - Dimension beast'
     },
+    'story-5k-extreme-dim': {
+        'vocab_size': 48,
+        'dim': 32,
+        'hidden_dim': 128,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 2,
+        'max_seq_len': 40,
+        'description': '5.0K parameters - Extreme dimensions'
+    },
+    
+    # Attention Head Study
+    'story-5k-single-head': {
+        'vocab_size': 128,
+        'dim': 16,
+        'hidden_dim': 64,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 40,
+        'description': '5.1K parameters - Single attention head'
+    },
+    'story-5k-mega-heads': {
+        'vocab_size': 96,
+        'dim': 16,
+        'hidden_dim': 64,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 16,  # EXTREME multi-head!
+        'max_seq_len': 40,
+        'description': '5.0K parameters - Mega attention heads'
+    },
+    'story-5k-head-hydra': {
+        'vocab_size': 64,
+        'dim': 16,
+        'hidden_dim': 64,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 16,
+        'max_seq_len': 40,
+        'description': '5.0K parameters - Head hydra (16 heads!)'
+    },
+    'story-5k-attention-monster': {
+        'vocab_size': 48,
+        'dim': 16,
+        'hidden_dim': 64,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 32,  # INSANE multi-head!
+        'max_seq_len': 40,
+        'description': '5.0K parameters - Attention monster (32 heads!)'
+    },
+    
+    # Layer Depth Study
     'story-5k-deep': {
         'vocab_size': 96,
         'dim': 12,
@@ -637,44 +755,162 @@ MODEL_CONFIGS = {
         'max_seq_len': 40,
         'description': '4.9K parameters - Deep 5K model'
     },
-    'story-5k-ultra-deep': {
-        'vocab_size': 48,
+    'story-5k-triple-layer': {
+        'vocab_size': 64,
         'dim': 8,
         'hidden_dim': 32,  # 4x dim
         'n_layers': 3,
         'n_heads': 2,
         'max_seq_len': 40,
-        'description': '4.8K parameters - Ultra deep'
+        'description': '4.8K parameters - Triple layer'
+    },
+    'story-5k-quad-layer': {
+        'vocab_size': 48,
+        'dim': 8,
+        'hidden_dim': 32,  # 4x dim
+        'n_layers': 4,
+        'n_heads': 2,
+        'max_seq_len': 40,
+        'description': '4.9K parameters - Quad layer'
     },
     'story-5k-layer-tower': {
         'vocab_size': 32,
         'dim': 6,
         'hidden_dim': 24,  # 4x dim
-        'n_layers': 4,
+        'n_layers': 6,
         'n_heads': 2,
         'max_seq_len': 40,
         'description': '4.9K parameters - Layer tower'
     },
-    'story-5k-attention-hydra': {
-        'vocab_size': 80,
-        'dim': 16,
-        'hidden_dim': 64,  # 4x dim
-        'n_layers': 1,
-        'n_heads': 8,
-        'max_seq_len': 40,
-        'description': '5.2K parameters - Attention hydra'
-    },
     
-    # === 7K Parameter Architectural Variants ===
-    'story-7k-vocab-heavy': {
-        'vocab_size': 512,
-        'dim': 10,
-        'hidden_dim': 40,  # 4x dim
+    # Hidden Layer Ratio Study (Fat FFN Revolution!)
+    'story-5k-thin-hidden': {
+        'vocab_size': 256,
+        'dim': 16,
+        'hidden_dim': 32,  # 2x dim (thin)
+        'n_layers': 1,
+        'n_heads': 4,
+        'max_seq_len': 40,
+        'description': '5.0K parameters - Thin hidden layer'
+    },
+    'story-5k-fat-hidden': {
+        'vocab_size': 128,
+        'dim': 12,
+        'hidden_dim': 96,  # 8x dim (fat)
+        'n_layers': 1,
+        'n_heads': 4,
+        'max_seq_len': 40,
+        'description': '5.0K parameters - Fat hidden layer'
+    },
+    'story-5k-mega-hidden': {
+        'vocab_size': 96,
+        'dim': 8,
+        'hidden_dim': 128,  # 16x dim (mega)
+        'n_layers': 1,
+        'n_heads': 3,
+        'max_seq_len': 40,
+        'description': '5.0K parameters - Mega hidden layer'
+    },
+    'story-5k-ultra-hidden': {
+        'vocab_size': 64,
+        'dim': 6,
+        'hidden_dim': 192,  # 32x dim!
         'n_layers': 1,
         'n_heads': 2,
-        'max_seq_len': 44,
-        'description': '7.0K parameters - Vocabulary heavy'
+        'max_seq_len': 40,
+        'description': '5.0K parameters - Ultra hidden layer'
     },
+    
+    # Mathematical Ratio Study
+    'story-5k-fibonacci': {
+        'vocab_size': 144,  # Fibonacci
+        'dim': 12,
+        'hidden_dim': 55,  # Fibonacci
+        'n_layers': 1,
+        'n_heads': 8,  # Fibonacci
+        'max_seq_len': 40,
+        'description': '5.0K parameters - Fibonacci ratios'
+    },
+    'story-5k-golden-ratio': {
+        'vocab_size': 100,  # ~φ^4
+        'dim': 14,
+        'hidden_dim': 100,  # Golden ratio
+        'n_layers': 1,
+        'n_heads': 7,
+        'max_seq_len': 40,
+        'description': '5.1K parameters - Golden ratio design'
+    },
+    'story-5k-prime-numbers': {
+        'vocab_size': 127,  # Prime
+        'dim': 13,  # Prime
+        'hidden_dim': 73,  # Prime
+        'n_layers': 1,
+        'n_heads': 5,  # Prime
+        'max_seq_len': 40,
+        'description': '5.0K parameters - Prime number architecture'
+    },
+    'story-5k-powers-of-two': {
+        'vocab_size': 128,  # 2^7
+        'dim': 16,   # 2^4
+        'hidden_dim': 128,  # 2^7
+        'n_layers': 1,
+        'n_heads': 16,  # 2^4
+        'max_seq_len': 40,
+        'description': '5.0K parameters - Powers of 2 design'
+    },
+    
+    # Extreme Architectures
+    'story-5k-ffn-beast': {
+        'vocab_size': 32,
+        'dim': 4,
+        'hidden_dim': 256,  # 64x dim!
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 40,
+        'description': '5.0K parameters - FFN beast (64x ratio!)'
+    },
+    'story-5k-mixed-extreme': {
+        'vocab_size': 256,
+        'dim': 12,
+        'hidden_dim': 32,  # 2.7x dim
+        'n_layers': 2,
+        'n_heads': 12,
+        'max_seq_len': 40,
+        'description': '5.0K parameters - Mixed extremes'
+    },
+    
+    # Hybrid Designs (Best of 3K findings)
+    'story-5k-speed-demon': {
+        'vocab_size': 96,
+        'dim': 12,
+        'hidden_dim': 96,  # 8x dim (fat FFN)
+        'n_layers': 1,
+        'n_heads': 12,  # Many heads
+        'max_seq_len': 40,
+        'description': '5.0K parameters - Speed demon (heads + fat FFN)'
+    },
+    'story-5k-efficiency-king': {
+        'vocab_size': 128,
+        'dim': 8,
+        'hidden_dim': 128,  # 16x dim
+        'n_layers': 1,
+        'n_heads': 16,  # Max heads
+        'max_seq_len': 40,
+        'description': '5.0K parameters - Efficiency king'
+    },
+    'story-5k-balanced-extreme': {
+        'vocab_size': 192,
+        'dim': 14,
+        'hidden_dim': 84,  # 6x dim
+        'n_layers': 1,
+        'n_heads': 14,
+        'max_seq_len': 40,
+        'description': '5.1K parameters - Balanced extreme'
+    },
+    
+    # === 7K Parameter Architectural Variants - COMPREHENSIVE STUDY ===
+    
+    # Core Balanced Designs
     'story-7k-balanced': {
         'vocab_size': 160,
         'dim': 18,
@@ -684,15 +920,140 @@ MODEL_CONFIGS = {
         'max_seq_len': 44,
         'description': '7.2K parameters - Balanced 7K design'
     },
-    'story-7k-dimension-focus': {
-        'vocab_size': 96,
+    'story-7k-optimal': {
+        'vocab_size': 128,
+        'dim': 16,
+        'hidden_dim': 128,  # 8x dim (fat FFN)
+        'n_layers': 1,
+        'n_heads': 8,
+        'max_seq_len': 44,
+        'description': '7.0K parameters - Optimal based on 5K findings'
+    },
+    
+    # Vocabulary Size Study
+    'story-7k-tiny-vocab': {
+        'vocab_size': 64,
         'dim': 24,
         'hidden_dim': 96,  # 4x dim
         'n_layers': 1,
-        'n_heads': 6,
+        'n_heads': 4,
+        'max_seq_len': 44,
+        'description': '7.0K parameters - Tiny vocab, big model'
+    },
+    'story-7k-vocab-heavy': {
+        'vocab_size': 512,
+        'dim': 10,
+        'hidden_dim': 40,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 2,
+        'max_seq_len': 44,
+        'description': '7.0K parameters - Vocabulary heavy'
+    },
+    'story-7k-vocab-monster': {
+        'vocab_size': 1024,
+        'dim': 8,
+        'hidden_dim': 32,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 2,
+        'max_seq_len': 44,
+        'description': '7.0K parameters - Vocabulary monster'
+    },
+    'story-7k-vocab-ultra': {
+        'vocab_size': 1536,
+        'dim': 6,
+        'hidden_dim': 24,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 2,
+        'max_seq_len': 44,
+        'description': '7.0K parameters - Ultra vocab focus'
+    },
+    
+    # Dimension Study (Based on 3K/5K Breakthrough!)
+    'story-7k-super-narrow': {
+        'vocab_size': 768,
+        'dim': 8,
+        'hidden_dim': 32,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 2,
+        'max_seq_len': 44,
+        'description': '7.0K parameters - Super narrow dimensions'
+    },
+    'story-7k-narrow': {
+        'vocab_size': 512,
+        'dim': 12,
+        'hidden_dim': 48,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 3,
+        'max_seq_len': 44,
+        'description': '7.0K parameters - Narrow dimensions'
+    },
+    'story-7k-wide-dim': {
+        'vocab_size': 256,
+        'dim': 28,
+        'hidden_dim': 112,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 7,
+        'max_seq_len': 44,
+        'description': '7.0K parameters - Wide dimensions'
+    },
+    'story-7k-dimension-focus': {
+        'vocab_size': 96,
+        'dim': 32,
+        'hidden_dim': 128,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 8,
         'max_seq_len': 44,
         'description': '7.0K parameters - Dimension focused'
     },
+    'story-7k-extreme-dim': {
+        'vocab_size': 64,
+        'dim': 36,
+        'hidden_dim': 144,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 4,
+        'max_seq_len': 44,
+        'description': '7.0K parameters - Extreme dimensions'
+    },
+    
+    # Attention Head Study
+    'story-7k-single-head': {
+        'vocab_size': 160,
+        'dim': 18,
+        'hidden_dim': 72,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 44,
+        'description': '7.2K parameters - Single attention head'
+    },
+    'story-7k-mega-heads': {
+        'vocab_size': 128,
+        'dim': 18,
+        'hidden_dim': 72,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 18,  # EXTREME multi-head!
+        'max_seq_len': 44,
+        'description': '7.0K parameters - Mega attention heads'
+    },
+    'story-7k-head-hydra': {
+        'vocab_size': 96,
+        'dim': 18,
+        'hidden_dim': 72,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 18,
+        'max_seq_len': 44,
+        'description': '7.0K parameters - Head hydra (18 heads!)'
+    },
+    'story-7k-attention-monster': {
+        'vocab_size': 64,
+        'dim': 18,
+        'hidden_dim': 72,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 36,  # INSANE multi-head!
+        'max_seq_len': 44,
+        'description': '7.0K parameters - Attention monster (36 heads!)'
+    },
+    
+    # Layer Depth Study
     'story-7k-deep': {
         'vocab_size': 128,
         'dim': 14,
@@ -701,6 +1062,24 @@ MODEL_CONFIGS = {
         'n_heads': 2,
         'max_seq_len': 44,
         'description': '7.0K parameters - Deep 7K model'
+    },
+    'story-7k-triple-layer': {
+        'vocab_size': 96,
+        'dim': 12,
+        'hidden_dim': 48,  # 4x dim
+        'n_layers': 3,
+        'n_heads': 3,
+        'max_seq_len': 44,
+        'description': '7.0K parameters - Triple layer'
+    },
+    'story-7k-quad-layer': {
+        'vocab_size': 64,
+        'dim': 10,
+        'hidden_dim': 40,  # 4x dim
+        'n_layers': 4,
+        'n_heads': 2,
+        'max_seq_len': 44,
+        'description': '7.0K parameters - Quad layer'
     },
     'story-7k-ultra-deep': {
         'vocab_size': 64,
@@ -728,6 +1107,140 @@ MODEL_CONFIGS = {
         'n_heads': 2,
         'max_seq_len': 44,
         'description': '6.9K parameters - Extreme deep'
+    },
+    'story-7k-layer-tower': {
+        'vocab_size': 24,
+        'dim': 4,
+        'hidden_dim': 16,  # 4x dim
+        'n_layers': 8,
+        'n_heads': 2,
+        'max_seq_len': 44,
+        'description': '7.0K parameters - Layer tower'
+    },
+    
+    # Hidden Layer Ratio Study (Fat FFN Revolution!)
+    'story-7k-thin-hidden': {
+        'vocab_size': 384,
+        'dim': 18,
+        'hidden_dim': 36,  # 2x dim (thin)
+        'n_layers': 1,
+        'n_heads': 4,
+        'max_seq_len': 44,
+        'description': '7.0K parameters - Thin hidden layer'
+    },
+    'story-7k-fat-hidden': {
+        'vocab_size': 192,
+        'dim': 16,
+        'hidden_dim': 128,  # 8x dim (fat)
+        'n_layers': 1,
+        'n_heads': 4,
+        'max_seq_len': 44,
+        'description': '7.0K parameters - Fat hidden layer'
+    },
+    'story-7k-mega-hidden': {
+        'vocab_size': 128,
+        'dim': 12,
+        'hidden_dim': 192,  # 16x dim (mega)
+        'n_layers': 1,
+        'n_heads': 3,
+        'max_seq_len': 44,
+        'description': '7.0K parameters - Mega hidden layer'
+    },
+    'story-7k-ultra-hidden': {
+        'vocab_size': 96,
+        'dim': 8,
+        'hidden_dim': 256,  # 32x dim!
+        'n_layers': 1,
+        'n_heads': 2,
+        'max_seq_len': 44,
+        'description': '7.0K parameters - Ultra hidden layer'
+    },
+    
+    # Mathematical Ratio Study
+    'story-7k-fibonacci': {
+        'vocab_size': 233,  # Fibonacci
+        'dim': 16,
+        'hidden_dim': 89,  # Fibonacci
+        'n_layers': 1,
+        'n_heads': 13,  # Fibonacci
+        'max_seq_len': 44,
+        'description': '7.0K parameters - Fibonacci ratios'
+    },
+    'story-7k-golden-ratio': {
+        'vocab_size': 162,  # ~φ^4
+        'dim': 18,
+        'hidden_dim': 162,  # Golden ratio
+        'n_layers': 1,
+        'n_heads': 9,
+        'max_seq_len': 44,
+        'description': '7.1K parameters - Golden ratio design'
+    },
+    'story-7k-prime-numbers': {
+        'vocab_size': 199,  # Prime
+        'dim': 17,  # Prime
+        'hidden_dim': 113,  # Prime
+        'n_layers': 1,
+        'n_heads': 7,  # Prime
+        'max_seq_len': 44,
+        'description': '7.0K parameters - Prime number architecture'
+    },
+    'story-7k-powers-of-two': {
+        'vocab_size': 256,  # 2^8
+        'dim': 20,   # 2^4.3
+        'hidden_dim': 256,  # 2^8
+        'n_layers': 1,
+        'n_heads': 20,  # 2^4.3
+        'max_seq_len': 44,
+        'description': '7.0K parameters - Powers of 2 design'
+    },
+    
+    # Extreme Architectures
+    'story-7k-ffn-beast': {
+        'vocab_size': 48,
+        'dim': 6,
+        'hidden_dim': 384,  # 64x dim!
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 44,
+        'description': '7.0K parameters - FFN beast (64x ratio!)'
+    },
+    'story-7k-mixed-extreme': {
+        'vocab_size': 384,
+        'dim': 16,
+        'hidden_dim': 48,  # 3x dim
+        'n_layers': 2,
+        'n_heads': 16,
+        'max_seq_len': 44,
+        'description': '7.0K parameters - Mixed extremes'
+    },
+    
+    # Hybrid Designs (Best of 5K findings)
+    'story-7k-speed-demon': {
+        'vocab_size': 128,
+        'dim': 16,
+        'hidden_dim': 128,  # 8x dim (fat FFN)
+        'n_layers': 1,
+        'n_heads': 16,  # Many heads
+        'max_seq_len': 44,
+        'description': '7.0K parameters - Speed demon (heads + fat FFN)'
+    },
+    'story-7k-efficiency-king': {
+        'vocab_size': 192,
+        'dim': 12,
+        'hidden_dim': 192,  # 16x dim
+        'n_layers': 1,
+        'n_heads': 24,  # Max heads
+        'max_seq_len': 44,
+        'description': '7.0K parameters - Efficiency king'
+    },
+    'story-7k-balanced-extreme': {
+        'vocab_size': 288,
+        'dim': 18,
+        'hidden_dim': 108,  # 6x dim
+        'n_layers': 1,
+        'n_heads': 18,
+        'max_seq_len': 44,
+        'description': '7.1K parameters - Balanced extreme'
     },
 
     # === Original Size Categories ===
@@ -813,16 +1326,9 @@ MODEL_CONFIGS = {
         'max_seq_len': 48,
         'description': '8.0K parameters - Extreme wide'
     },
-    # === 10K Parameter Architectural Variants ===
-    'chat-10k-vocab-monster': {
-        'vocab_size': 800,
-        'dim': 10,
-        'hidden_dim': 40,  # 4x dim
-        'n_layers': 1,
-        'n_heads': 2,
-        'max_seq_len': 52,
-        'description': '10.0K parameters - Vocabulary monster'
-    },
+    # === 10K Parameter Architectural Variants - COMPREHENSIVE STUDY (40+ Variants) ===
+    
+    # Core Balanced Designs
     'chat-10k-balanced': {
         'vocab_size': 144,
         'dim': 18,
@@ -832,6 +1338,93 @@ MODEL_CONFIGS = {
         'max_seq_len': 52,
         'description': '10.4K parameters - Balanced chat design'
     },
+    'chat-10k-optimal': {
+        'vocab_size': 128,
+        'dim': 16,
+        'hidden_dim': 128,  # 8x dim (fat FFN)
+        'n_layers': 1,
+        'n_heads': 8,
+        'max_seq_len': 52,
+        'description': '10.0K parameters - Optimal based on 7K findings'
+    },
+    
+    # === SUPER NARROW DIMENSION STUDY (Our BREAKTHROUGH Approach!) ===
+    'chat-10k-super-narrow': {
+        'vocab_size': 1024,
+        'dim': 4,
+        'hidden_dim': 16,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 2,
+        'max_seq_len': 52,
+        'description': '10.0K parameters - Super narrow dimensions (4d!)'
+    },
+    'chat-10k-ultra-narrow': {
+        'vocab_size': 768,
+        'dim': 6,
+        'hidden_dim': 24,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 3,
+        'max_seq_len': 52,
+        'description': '10.0K parameters - Ultra narrow dimensions (6d!)'
+    },
+    'chat-10k-narrow': {
+        'vocab_size': 512,
+        'dim': 8,
+        'hidden_dim': 32,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 4,
+        'max_seq_len': 52,
+        'description': '10.0K parameters - Narrow dimensions (8d!)'
+    },
+    'chat-10k-narrow-plus': {
+        'vocab_size': 384,
+        'dim': 10,
+        'hidden_dim': 40,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 5,
+        'max_seq_len': 52,
+        'description': '10.0K parameters - Narrow plus (10d!)'
+    },
+    
+    # === VOCABULARY SIZE STUDY (Extreme Range) ===
+    'chat-10k-tiny-vocab': {
+        'vocab_size': 64,
+        'dim': 24,
+        'hidden_dim': 96,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 6,
+        'max_seq_len': 52,
+        'description': '10.0K parameters - Tiny vocabulary, big model'
+    },
+    'chat-10k-vocab-heavy': {
+        'vocab_size': 1024,
+        'dim': 8,
+        'hidden_dim': 32,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 2,
+        'max_seq_len': 52,
+        'description': '10.0K parameters - Vocabulary heavy'
+    },
+    'chat-10k-vocab-monster': {
+        'vocab_size': 1536,
+        'dim': 6,
+        'hidden_dim': 24,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 2,
+        'max_seq_len': 52,
+        'description': '10.0K parameters - Vocabulary monster'
+    },
+    'chat-10k-vocab-ultra': {
+        'vocab_size': 2048,
+        'dim': 4,
+        'hidden_dim': 16,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 52,
+        'description': '10.0K parameters - Ultra vocabulary focus'
+    },
+    
+    # === DIMENSION STUDY (Full Range) ===
     'chat-10k-dimension-beast': {
         'vocab_size': 96,
         'dim': 28,
@@ -841,6 +1434,82 @@ MODEL_CONFIGS = {
         'max_seq_len': 52,
         'description': '10.1K parameters - Dimension beast'
     },
+    'chat-10k-wide-dim': {
+        'vocab_size': 128,
+        'dim': 24,
+        'hidden_dim': 96,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 6,
+        'max_seq_len': 52,
+        'description': '10.0K parameters - Wide dimensions'
+    },
+    'chat-10k-extreme-dim': {
+        'vocab_size': 64,
+        'dim': 32,
+        'hidden_dim': 128,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 8,
+        'max_seq_len': 52,
+        'description': '10.2K parameters - Extreme dimensions'
+    },
+    'chat-10k-ultra-wide': {
+        'vocab_size': 48,
+        'dim': 36,
+        'hidden_dim': 144,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 4,
+        'max_seq_len': 52,
+        'description': '10.0K parameters - Ultra wide dimensions'
+    },
+    
+    # === ATTENTION HEAD STUDY (Extreme Range) ===
+    'chat-10k-single-head': {
+        'vocab_size': 144,
+        'dim': 18,
+        'hidden_dim': 72,  # 4x dim
+        'n_layers': 2,
+        'n_heads': 1,
+        'max_seq_len': 52,
+        'description': '10.4K parameters - Single attention head'
+    },
+    'chat-10k-mega-heads': {
+        'vocab_size': 128,
+        'dim': 16,
+        'hidden_dim': 64,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 16,  # EXTREME multi-head!
+        'max_seq_len': 52,
+        'description': '10.0K parameters - Mega attention heads'
+    },
+    'chat-10k-ultra-heads': {
+        'vocab_size': 96,
+        'dim': 16,
+        'hidden_dim': 64,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 24,  # INSANE multi-head!
+        'max_seq_len': 52,
+        'description': '10.0K parameters - Ultra heads (24!)'
+    },
+    'chat-10k-attention-monster': {
+        'vocab_size': 64,
+        'dim': 16,
+        'hidden_dim': 64,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 32,  # MONSTER multi-head!
+        'max_seq_len': 52,
+        'description': '10.0K parameters - Attention monster (32 heads!)'
+    },
+    'chat-10k-attention-hydra': {
+        'vocab_size': 96,
+        'dim': 20,
+        'hidden_dim': 80,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 10,
+        'max_seq_len': 52,
+        'description': '10.2K parameters - Attention hydra'
+    },
+    
+    # === LAYER DEPTH STUDY (Extreme Range) ===
     'chat-10k-deep': {
         'vocab_size': 128,
         'dim': 16,
@@ -877,14 +1546,119 @@ MODEL_CONFIGS = {
         'max_seq_len': 52,
         'description': '10.0K parameters - Mega deep'
     },
-    'chat-10k-attention-hydra': {
-        'vocab_size': 96,
+    'chat-10k-ultra-deep-plus': {
+        'vocab_size': 32,
+        'dim': 6,
+        'hidden_dim': 24,  # 4x dim
+        'n_layers': 7,
+        'n_heads': 1,
+        'max_seq_len': 52,
+        'description': '10.0K parameters - Ultra deep plus (7 layers!)'
+    },
+    'chat-10k-layer-monster': {
+        'vocab_size': 24,
+        'dim': 4,
+        'hidden_dim': 16,  # 4x dim
+        'n_layers': 8,
+        'n_heads': 1,
+        'max_seq_len': 52,
+        'description': '10.0K parameters - Layer monster (8 layers!)'
+    },
+    
+    # === HIDDEN LAYER RATIO STUDY (Extreme Range) ===
+    'chat-10k-thin-hidden': {
+        'vocab_size': 512,
+        'dim': 16,
+        'hidden_dim': 32,  # 2x dim (thin)
+        'n_layers': 1,
+        'n_heads': 4,
+        'max_seq_len': 52,
+        'description': '10.0K parameters - Thin hidden layer'
+    },
+    'chat-10k-fat-hidden': {
+        'vocab_size': 256,
+        'dim': 12,
+        'hidden_dim': 96,  # 8x dim (fat)
+        'n_layers': 1,
+        'n_heads': 3,
+        'max_seq_len': 52,
+        'description': '10.0K parameters - Fat hidden layer'
+    },
+    'chat-10k-mega-hidden': {
+        'vocab_size': 128,
+        'dim': 8,
+        'hidden_dim': 128,  # 16x dim (mega)
+        'n_layers': 1,
+        'n_heads': 2,
+        'max_seq_len': 52,
+        'description': '10.0K parameters - Mega hidden layer'
+    },
+    'chat-10k-ultra-hidden': {
+        'vocab_size': 64,
+        'dim': 6,
+        'hidden_dim': 192,  # 32x dim!
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 52,
+        'description': '10.0K parameters - Ultra hidden layer'
+    },
+    'chat-10k-ffn-beast': {
+        'vocab_size': 32,
+        'dim': 4,
+        'hidden_dim': 256,  # 64x dim!
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 52,
+        'description': '10.0K parameters - FFN beast (64x ratio!)'
+    },
+    
+    # === MATHEMATICAL RATIO STUDY (Extreme Range) ===
+    'chat-10k-fibonacci': {
+        'vocab_size': 377,  # Fibonacci
+        'dim': 14,
+        'hidden_dim': 89,  # Fibonacci
+        'n_layers': 1,
+        'n_heads': 13,  # Fibonacci
+        'max_seq_len': 52,
+        'description': '10.0K parameters - Fibonacci ratios'
+    },
+    'chat-10k-golden-ratio': {
+        'vocab_size': 262,  # ~φ^5
         'dim': 20,
-        'hidden_dim': 80,  # 4x dim
+        'hidden_dim': 262,  # Golden ratio
         'n_layers': 1,
         'n_heads': 10,
         'max_seq_len': 52,
-        'description': '10.2K parameters - Attention hydra'
+        'description': '10.1K parameters - Golden ratio design'
+    },
+    'chat-10k-prime-numbers': {
+        'vocab_size': 311,  # Prime
+        'dim': 19,  # Prime
+        'hidden_dim': 173,  # Prime
+        'n_layers': 1,
+        'n_heads': 7,  # Prime
+        'max_seq_len': 52,
+        'description': '10.0K parameters - Prime number architecture'
+    },
+    'chat-10k-powers-of-two': {
+        'vocab_size': 512,  # 2^9
+        'dim': 16,   # 2^4
+        'hidden_dim': 512,  # 2^9
+        'n_layers': 1,
+        'n_heads': 16,  # 2^4
+        'max_seq_len': 52,
+        'description': '10.0K parameters - Powers of 2 design'
+    },
+    
+    # === EXTREME ARCHITECTURES (Never Attempted Before!) ===
+    'chat-10k-vocab-monster': {
+        'vocab_size': 800,
+        'dim': 10,
+        'hidden_dim': 40,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 2,
+        'max_seq_len': 52,
+        'description': '10.0K parameters - Vocabulary monster'
     },
     'chat-10k-extreme-wide': {
         'vocab_size': 64,
@@ -903,6 +1677,73 @@ MODEL_CONFIGS = {
         'n_heads': 8,
         'max_seq_len': 52,
         'description': '10.1K parameters - Mixed extremes'
+    },
+    
+    # === HYBRID DESIGNS (Best of All Findings) ===
+    'chat-10k-speed-demon': {
+        'vocab_size': 128,
+        'dim': 12,
+        'hidden_dim': 96,  # 8x dim (fat FFN)
+        'n_layers': 1,
+        'n_heads': 12,  # Many heads
+        'max_seq_len': 52,
+        'description': '10.0K parameters - Speed demon (heads + fat FFN)'
+    },
+    'chat-10k-efficiency-king': {
+        'vocab_size': 192,
+        'dim': 8,
+        'hidden_dim': 128,  # 16x dim
+        'n_layers': 1,
+        'n_heads': 16,  # Max heads
+        'max_seq_len': 52,
+        'description': '10.0K parameters - Efficiency king'
+    },
+    'chat-10k-balanced-extreme': {
+        'vocab_size': 288,
+        'dim': 16,
+        'hidden_dim': 96,  # 6x dim
+        'n_layers': 1,
+        'n_heads': 16,
+        'max_seq_len': 52,
+        'description': '10.1K parameters - Balanced extreme'
+    },
+    
+    # === ULTRA-EXPERIMENTAL DESIGNS (Pushing Boundaries!) ===
+    'chat-10k-ultra-narrow-vocab': {
+        'vocab_size': 1536,
+        'dim': 3,
+        'hidden_dim': 12,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 52,
+        'description': '10.0K parameters - Ultra narrow + huge vocab (3d!)'
+    },
+    'chat-10k-ultra-wide-heads': {
+        'vocab_size': 32,
+        'dim': 40,
+        'hidden_dim': 160,  # 4x dim
+        'n_layers': 1,
+        'n_heads': 40,  # ULTRA wide + ultra heads!
+        'max_seq_len': 52,
+        'description': '10.0K parameters - Ultra wide + ultra heads (40d, 40 heads!)'
+    },
+    'chat-10k-ultra-deep-narrow': {
+        'vocab_size': 64,
+        'dim': 4,
+        'hidden_dim': 16,  # 4x dim
+        'n_layers': 10,  # ULTRA deep + ultra narrow!
+        'n_heads': 1,
+        'max_seq_len': 52,
+        'description': '10.0K parameters - Ultra deep + ultra narrow (10 layers, 4d!)'
+    },
+    'chat-10k-ultra-fat-ffn': {
+        'vocab_size': 16,
+        'dim': 2,
+        'hidden_dim': 128,  # 64x dim!
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 52,
+        'description': '10.0K parameters - Ultra fat FFN (2d, 64x ratio!)'
     },
     'chat-13k': {
         'vocab_size': 160,

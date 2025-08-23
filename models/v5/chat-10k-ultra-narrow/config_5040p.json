@@ -1,0 +1,9 @@
+{
+  "vocab_size": 768,
+  "dim": 6,
+  "hidden_dim": 24,
+  "n_layers": 1,
+  "n_heads": 3,
+  "max_seq_len": 52,
+  "description": "10.0K parameters - Ultra narrow dimensions (6d!)"
+}

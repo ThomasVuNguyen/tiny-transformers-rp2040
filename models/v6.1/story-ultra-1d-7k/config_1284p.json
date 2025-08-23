@@ -1,0 +1,9 @@
+{
+  "vocab_size": 256,
+  "dim": 1,
+  "hidden_dim": 512,
+  "n_layers": 1,
+  "n_heads": 1,
+  "max_seq_len": 44,
+  "description": "7.0K parameters - ULTRA 1D MODEL (never attempted!)"
+}

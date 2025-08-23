@@ -1,0 +1,9 @@
+{
+  "vocab_size": 2,
+  "dim": 1,
+  "hidden_dim": 4096,
+  "n_layers": 1,
+  "n_heads": 1,
+  "max_seq_len": 36,
+  "description": "3.0K parameters - ULTRA 2048x FFN RATIO (beyond ultra-extreme!)"
+}

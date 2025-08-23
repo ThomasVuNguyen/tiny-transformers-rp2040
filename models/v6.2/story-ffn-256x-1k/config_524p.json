@@ -1,0 +1,9 @@
+{
+  "vocab_size": 8,
+  "dim": 1,
+  "hidden_dim": 256,
+  "n_layers": 1,
+  "n_heads": 1,
+  "max_seq_len": 32,
+  "description": "1.0K parameters - ULTRA 256x FFN RATIO (insane ratios!)"
+}

@@ -1,0 +1,9 @@
+{
+  "vocab_size": 16,
+  "dim": 1,
+  "hidden_dim": 2048,
+  "n_layers": 1,
+  "n_heads": 1,
+  "max_seq_len": 40,
+  "description": "5.0K parameters - ULTRA 512x FFN RATIO (beyond insane!)"
+}

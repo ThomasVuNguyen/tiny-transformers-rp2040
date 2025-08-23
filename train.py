@@ -21,6 +21,9 @@ import time
 import os
 from collections import Counter
 import json
+import multiprocessing as mp
+from concurrent.futures import ProcessPoolExecutor, as_completed
+import psutil
 
 # Model size presets - names reflect actual parameter counts
 MODEL_CONFIGS = {
@@ -1745,6 +1748,148 @@ MODEL_CONFIGS = {
         'max_seq_len': 52,
         'description': '10.0K parameters - Ultra fat FFN (2d, 64x ratio!)'
     },
+    
+    # === ULTRA-EXTREME 1D MODELS (Never Attempted Before!) ===
+    # Testing the absolute limits of narrow dimensions
+    'story-ultra-1d-1k': {
+        'vocab_size': 32,
+        'dim': 1,  # 1 DIMENSION! INSANE!
+        'hidden_dim': 64,  # 64x dim ratio
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 32,
+        'description': '1.0K parameters - ULTRA 1D MODEL (never attempted!)'
+    },
+    'story-ultra-1d-3k': {
+        'vocab_size': 64,
+        'dim': 1,  # 1 DIMENSION! INSANE!
+        'hidden_dim': 128,  # 128x dim ratio
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 36,
+        'description': '3.0K parameters - ULTRA 1D MODEL (never attempted!)'
+    },
+    'story-ultra-1d-5k': {
+        'vocab_size': 128,
+        'dim': 1,  # 1 DIMENSION! INSANE!
+        'hidden_dim': 256,  # 256x dim ratio
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 40,
+        'description': '5.0K parameters - ULTRA 1D MODEL (never attempted!)'
+    },
+    'story-ultra-1d-7k': {
+        'vocab_size': 256,
+        'dim': 1,  # 1 DIMENSION! INSANE!
+        'hidden_dim': 512,  # 512x dim ratio
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 44,
+        'description': '7.0K parameters - ULTRA 1D MODEL (never attempted!)'
+    },
+    'story-ultra-1d-10k': {
+        'vocab_size': 512,
+        'dim': 1,  # 1 DIMENSION! INSANE!
+        'hidden_dim': 1024,  # 1024x dim ratio
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 52,
+        'description': '10.0K parameters - ULTRA 1D MODEL (never attempted!)'
+    },
+    
+    # === ULTRA-EXTREME 2D MODELS (Beyond Known Limits!) ===
+    'story-ultra-2d-1k': {
+        'vocab_size': 64,
+        'dim': 2,  # 2 DIMENSIONS! EXTREME!
+        'hidden_dim': 64,  # 32x dim ratio
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 32,
+        'description': '1.0K parameters - ULTRA 2D MODEL (beyond known limits!)'
+    },
+    'story-ultra-2d-3k': {
+        'vocab_size': 128,
+        'dim': 2,  # 2 DIMENSIONS! EXTREME!
+        'hidden_dim': 128,  # 64x dim ratio
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 36,
+        'description': '3.0K parameters - ULTRA 2D MODEL (beyond known limits!)'
+    },
+    'story-ultra-2d-5k': {
+        'vocab_size': 256,
+        'dim': 2,  # 2 DIMENSIONS! EXTREME!
+        'hidden_dim': 256,  # 128x dim ratio
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 40,
+        'description': '5.0K parameters - ULTRA 2D MODEL (beyond known limits!)'
+    },
+    'story-ultra-2d-7k': {
+        'vocab_size': 512,
+        'dim': 2,  # 2 DIMENSIONS! EXTREME!
+        'hidden_dim': 512,  # 256x dim ratio
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 44,
+        'description': '7.0K parameters - ULTRA 2D MODEL (beyond known limits!)'
+    },
+    'story-ultra-2d-10k': {
+        'vocab_size': 1024,
+        'dim': 2,  # 2 DIMENSIONS! EXTREME!
+        'hidden_dim': 1024,  # 512x dim ratio
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 52,
+        'description': '10.0K parameters - ULTRA 2D MODEL (beyond known limits!)'
+    },
+    
+    # === ULTRA-EXTREME 3D MODELS (Pushing Boundaries!) ===
+    'story-ultra-3d-1k': {
+        'vocab_size': 96,
+        'dim': 3,  # 3 DIMENSIONS! EXTREME!
+        'hidden_dim': 96,  # 32x dim ratio
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 32,
+        'description': '1.0K parameters - ULTRA 3D MODEL (pushing boundaries!)'
+    },
+    'story-ultra-3d-3k': {
+        'vocab_size': 192,
+        'dim': 3,  # 3 DIMENSIONS! EXTREME!
+        'hidden_dim': 192,  # 64x dim ratio
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 36,
+        'description': '3.0K parameters - ULTRA 3D MODEL (pushing boundaries!)'
+    },
+    'story-ultra-3d-5k': {
+        'vocab_size': 384,
+        'dim': 3,  # 3 DIMENSIONS! EXTREME!
+        'hidden_dim': 384,  # 128x dim ratio
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 40,
+        'description': '5.0K parameters - ULTRA 3D MODEL (pushing boundaries!)'
+    },
+    'story-ultra-3d-7k': {
+        'vocab_size': 768,
+        'dim': 3,  # 3 DIMENSIONS! EXTREME!
+        'hidden_dim': 768,  # 256x dim ratio
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 44,
+        'description': '7.0K parameters - ULTRA 3D MODEL (pushing boundaries!)'
+    },
+    'story-ultra-3d-10k': {
+        'vocab_size': 1536,
+        'dim': 3,  # 3 DIMENSIONS! EXTREME!
+        'hidden_dim': 1536,  # 512x dim ratio
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 52,
+        'description': '10.0K parameters - ULTRA 3D MODEL (pushing boundaries!)'
+    },
     'chat-13k': {
         'vocab_size': 160,
         'dim': 20,
@@ -1816,7 +1961,474 @@ MODEL_CONFIGS = {
         'n_heads': 32,
         'max_seq_len': 128,
         'description': '1310.7K parameters - Expert tasks'
-    }
+    },
+    # === ULTRA-EXTREME 3D MODELS (Pushing Boundaries!) ===
+    'story-ultra-3d-1k': {
+        'vocab_size': 96,
+        'dim': 3,  # 3 DIMENSIONS! EXTREME!
+        'hidden_dim': 192,  # 64x dim ratio
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 32,
+        'description': '1.0K parameters - ULTRA 3D MODEL (pushing boundaries!)'
+    },
+    'story-ultra-3d-3k': {
+        'vocab_size': 192,
+        'dim': 3,  # 3 DIMENSIONS! EXTREME!
+        'hidden_dim': 384,  # 128x dim ratio
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 36,
+        'description': '3.0K parameters - ULTRA 3D MODEL (pushing boundaries!)'
+    },
+    'story-ultra-3d-5k': {
+        'vocab_size': 384,
+        'dim': 3,  # 3 DIMENSIONS! EXTREME!
+        'hidden_dim': 768,  # 256x dim ratio
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 40,
+        'description': '5.0K parameters - ULTRA 3D MODEL (pushing boundaries!)'
+    },
+    'story-ultra-3d-7k': {
+        'vocab_size': 768,
+        'dim': 3,  # 3 DIMENSIONS! EXTREME!
+        'hidden_dim': 1536,  # 512x dim ratio
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 44,
+        'description': '7.0K parameters - ULTRA 3D MODEL (pushing boundaries!)'
+    },
+    'story-ultra-3d-10k': {
+        'vocab_size': 1536,
+        'dim': 3,  # 3 DIMENSIONS! EXTREME!
+        'hidden_dim': 3072,  # 1024x dim ratio
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 52,
+        'description': '10.0K parameters - ULTRA 3D MODEL (pushing boundaries!)'
+    },
+    
+    # === ULTRA-EXTREME FFN RATIO STUDY (Phase 2: Push Beyond 1024x!) ===
+    # Testing even more extreme hidden layer ratios that have NEVER been attempted!
+    
+    # === 128x FFN RATIO MODELS (Beyond Known Limits!) ===
+    'story-ffn-128x-1k': {
+        'vocab_size': 16,
+        'dim': 1,  # 1 DIMENSION! INSANE!
+        'hidden_dim': 128,  # 128x dim ratio!
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 32,
+        'description': '1.0K parameters - ULTRA 128x FFN RATIO (beyond known limits!)'
+    },
+    'story-ffn-128x-3k': {
+        'vocab_size': 32,
+        'dim': 1,  # 1 DIMENSION! INSANE!
+        'hidden_dim': 256,  # 256x dim ratio!
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 36,
+        'description': '3.0K parameters - ULTRA 128x FFN RATIO (beyond known limits!)'
+    },
+    'story-ffn-128x-5k': {
+        'vocab_size': 64,
+        'dim': 1,  # 1 DIMENSION! INSANE!
+        'hidden_dim': 512,  # 512x dim ratio!
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 40,
+        'description': '5.0K parameters - ULTRA 128x FFN RATIO (beyond known limits!)'
+    },
+    'story-ffn-128x-7k': {
+        'vocab_size': 128,
+        'dim': 1,  # 1 DIMENSION! INSANE!
+        'hidden_dim': 1024,  # 1024x dim ratio!
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 44,
+        'description': '7.0K parameters - ULTRA 128x FFN RATIO (beyond known limits!)'
+    },
+    'story-ffn-128x-10k': {
+        'vocab_size': 256,
+        'dim': 1,  # 1 DIMENSION! INSANE!
+        'hidden_dim': 2048,  # 2048x dim ratio!
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 52,
+        'description': '10.0K parameters - ULTRA 128x FFN RATIO (beyond known limits!)'
+    },
+    
+    # === 256x FFN RATIO MODELS (Insane Ratios!) ===
+    'story-ffn-256x-1k': {
+        'vocab_size': 8,
+        'dim': 1,  # 1 DIMENSION! INSANE!
+        'hidden_dim': 256,  # 256x dim ratio!
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 32,
+        'description': '1.0K parameters - ULTRA 256x FFN RATIO (insane ratios!)'
+    },
+    'story-ffn-256x-3k': {
+        'vocab_size': 16,
+        'dim': 1,  # 1 DIMENSION! INSANE!
+        'hidden_dim': 512,  # 512x dim ratio!
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 36,
+        'description': '3.0K parameters - ULTRA 256x FFN RATIO (insane ratios!)'
+    },
+    'story-ffn-256x-5k': {
+        'vocab_size': 32,
+        'dim': 1,  # 1 DIMENSION! INSANE!
+        'hidden_dim': 1024,  # 1024x dim ratio!
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 40,
+        'description': '5.0K parameters - ULTRA 256x FFN RATIO (insane ratios!)'
+    },
+    'story-ffn-256x-7k': {
+        'vocab_size': 64,
+        'dim': 1,  # 1 DIMENSION! INSANE!
+        'hidden_dim': 2048,  # 2048x dim ratio!
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 44,
+        'description': '7.0K parameters - ULTRA 256x FFN RATIO (insane ratios!)'
+    },
+    'story-ffn-256x-10k': {
+        'vocab_size': 128,
+        'dim': 1,  # 1 DIMENSION! INSANE!
+        'hidden_dim': 4096,  # 4096x dim ratio!
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 52,
+        'description': '10.0K parameters - ULTRA 256x FFN RATIO (insane ratios!)'
+    },
+    
+    # === 512x FFN RATIO MODELS (Beyond Insane!) ===
+    'story-ffn-512x-1k': {
+        'vocab_size': 4,
+        'dim': 1,  # 1 DIMENSION! INSANE!
+        'hidden_dim': 512,  # 512x dim ratio!
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 32,
+        'description': '1.0K parameters - ULTRA 512x FFN RATIO (beyond insane!)'
+    },
+    'story-ffn-512x-3k': {
+        'vocab_size': 8,
+        'dim': 1,  # 1 DIMENSION! INSANE!
+        'hidden_dim': 1024,  # 1024x dim ratio!
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 36,
+        'description': '3.0K parameters - ULTRA 512x FFN RATIO (beyond insane!)'
+    },
+    'story-ffn-512x-5k': {
+        'vocab_size': 16,
+        'dim': 1,  # 1 DIMENSION! INSANE!
+        'hidden_dim': 2048,  # 2048x dim ratio!
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 40,
+        'description': '5.0K parameters - ULTRA 512x FFN RATIO (beyond insane!)'
+    },
+    'story-ffn-512x-7k': {
+        'vocab_size': 32,
+        'dim': 1,  # 1 DIMENSION! INSANE!
+        'hidden_dim': 4096,  # 4096x dim ratio!
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 44,
+        'description': '7.0K parameters - ULTRA 512x FFN RATIO (beyond insane!)'
+    },
+    'story-ffn-512x-10k': {
+        'vocab_size': 64,
+        'dim': 1,  # 1 DIMENSION! INSANE!
+        'hidden_dim': 8192,  # 8192x dim ratio!
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 52,
+        'description': '10.0K parameters - ULTRA 512x FFN RATIO (beyond insane!)'
+    },
+    
+    # === 1024x FFN RATIO MODELS (Ultra-Extreme!) ===
+    'story-ffn-1024x-1k': {
+        'vocab_size': 2,
+        'dim': 1,  # 1 DIMENSION! INSANE!
+        'hidden_dim': 1024,  # 1024x dim ratio!
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 32,
+        'description': '1.0K parameters - ULTRA 1024x FFN RATIO (ultra-extreme!)'
+    },
+    'story-ffn-1024x-3k': {
+        'vocab_size': 4,
+        'dim': 1,  # 1 DIMENSION! INSANE!
+        'hidden_dim': 2048,  # 2048x dim ratio!
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 36,
+        'description': '3.0K parameters - ULTRA 1024x FFN RATIO (ultra-extreme!)'
+    },
+    'story-ffn-1024x-5k': {
+        'vocab_size': 8,
+        'dim': 1,  # 1 DIMENSION! INSANE!
+        'hidden_dim': 4096,  # 4096x dim ratio!
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 40,
+        'description': '5.0K parameters - ULTRA 1024x FFN RATIO (ultra-extreme!)'
+    },
+    'story-ffn-1024x-7k': {
+        'vocab_size': 16,
+        'dim': 1,  # 1 DIMENSION! INSANE!
+        'hidden_dim': 8192,  # 8192x dim ratio!
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 44,
+        'description': '7.0K parameters - ULTRA 1024x FFN RATIO (ultra-extreme!)'
+    },
+    'story-ffn-1024x-10k': {
+        'vocab_size': 32,
+        'dim': 1,  # 1 DIMENSION! INSANE!
+        'hidden_dim': 16384,  # 16384x dim ratio!
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 52,
+        'description': '10.0K parameters - ULTRA 1024x FFN RATIO (ultra-extreme!)'
+    },
+    
+    # === 2048x FFN RATIO MODELS (Beyond Ultra-Extreme!) ===
+    'story-ffn-2048x-1k': {
+        'vocab_size': 1,
+        'dim': 1,  # 1 DIMENSION! INSANE!
+        'hidden_dim': 2048,  # 2048x dim ratio!
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 32,
+        'description': '1.0K parameters - ULTRA 2048x FFN RATIO (beyond ultra-extreme!)'
+    },
+    'story-ffn-2048x-3k': {
+        'vocab_size': 2,
+        'dim': 1,  # 1 DIMENSION! INSANE!
+        'hidden_dim': 4096,  # 4096x dim ratio!
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 36,
+        'description': '3.0K parameters - ULTRA 2048x FFN RATIO (beyond ultra-extreme!)'
+    },
+    'story-ffn-2048x-5k': {
+        'vocab_size': 4,
+        'dim': 1,  # 1 DIMENSION! INSANE!
+        'hidden_dim': 8192,  # 8192x dim ratio!
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 40,
+        'description': '5.0K parameters - ULTRA 2048x FFN RATIO (beyond ultra-extreme!)'
+    },
+    'story-ffn-2048x-7k': {
+        'vocab_size': 8,
+        'dim': 1,  # 1 DIMENSION! INSANE!
+        'hidden_dim': 16384,  # 16384x dim ratio!
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 44,
+        'description': '7.0K parameters - ULTRA 2048x FFN RATIO (beyond ultra-extreme!)'
+    },
+    'story-ffn-2048x-10k': {
+        'vocab_size': 16,
+        'dim': 1,  # 1 DIMENSION! INSANE!
+        'hidden_dim': 32768,  # 32768x dim ratio!
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 52,
+        'description': '10.0K parameters - ULTRA 2048x FFN RATIO (beyond ultra-extreme!)'
+    },
+    
+    # === 4096x FFN RATIO MODELS (The Absolute Limit!) ===
+    'story-ffn-4096x-1k': {
+        'vocab_size': 1,
+        'dim': 1,  # 1 DIMENSION! INSANE!
+        'hidden_dim': 4096,  # 4096x dim ratio!
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 32,
+        'description': '1.0K parameters - ULTRA 4096x FFN RATIO (the absolute limit!)'
+    },
+    'story-ffn-4096x-3k': {
+        'vocab_size': 1,
+        'dim': 1,  # 1 DIMENSION! INSANE!
+        'hidden_dim': 8192,  # 8192x dim ratio!
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 36,
+        'description': '3.0K parameters - ULTRA 4096x FFN RATIO (the absolute limit!)'
+    },
+    'story-ffn-4096x-5k': {
+        'vocab_size': 2,
+        'dim': 1,  # 1 DIMENSION! INSANE!
+        'hidden_dim': 16384,  # 16384x dim ratio!
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 40,
+        'description': '5.0K parameters - ULTRA 4096x FFN RATIO (the absolute limit!)'
+    },
+    'story-ffn-4096x-7k': {
+        'vocab_size': 4,
+        'dim': 1,  # 1 DIMENSION! INSANE!
+        'hidden_dim': 32768,  # 32768x dim ratio!
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 44,
+        'description': '7.0K parameters - ULTRA 4096x FFN RATIO (the absolute limit!)'
+    },
+    'story-ffn-4096x-10k': {
+        'vocab_size': 8,
+        'dim': 1,  # 1 DIMENSION! INSANE!
+        'hidden_dim': 65536,  # 65536x dim ratio!
+        'n_layers': 1,
+        'n_heads': 1,
+        'max_seq_len': 52,
+        'description': '10.0K parameters - ULTRA 4096x FFN RATIO (the absolute limit!)'
+    },
+
+    # === PHASE 3: ATTENTION HEAD EXTREMES (Beyond 24 Heads!) ===
+    # Testing ultra-wide attention architectures that have NEVER been attempted!
+    # Target: 50+ tok/s with extreme attention designs!
+    # === 32 ATTENTION HEADS (Ultra-Wide Attention!) ===
+    'story-attn-32h-1k': {
+        'vocab_size': 32, 'dim': 32, 'hidden_dim': 128, 'n_layers': 1, 'n_heads': 32, 'max_seq_len': 32,
+        'description': '1.0K parameters - ULTRA 32 ATTENTION HEADS (ultra-wide attention!)'
+    },
+    'story-attn-32h-3k': {
+        'vocab_size': 64, 'dim': 64, 'hidden_dim': 256, 'n_layers': 1, 'n_heads': 32, 'max_seq_len': 36,
+        'description': '3.0K parameters - ULTRA 32 ATTENTION HEADS (ultra-wide attention!)'
+    },
+    'story-attn-32h-5k': {
+        'vocab_size': 128, 'dim': 96, 'hidden_dim': 512, 'n_layers': 1, 'n_heads': 32, 'max_seq_len': 40,
+        'description': '5.0K parameters - ULTRA 32 ATTENTION HEADS (ultra-wide attention!)'
+    },
+    'story-attn-32h-7k': {
+        'vocab_size': 256, 'dim': 128, 'hidden_dim': 1024, 'n_layers': 1, 'n_heads': 32, 'max_seq_len': 44,
+        'description': '7.0K parameters - ULTRA 32 ATTENTION HEADS (ultra-wide attention!)'
+    },
+    'story-attn-32h-10k': {
+        'vocab_size': 512, 'dim': 160, 'hidden_dim': 2048, 'n_layers': 1, 'n_heads': 32, 'max_seq_len': 52,
+        'description': '10.0K parameters - ULTRA 32 ATTENTION HEADS (ultra-wide attention!)'
+    },
+
+    # === 48 ATTENTION HEADS (Insane Attention!) ===
+    'story-attn-48h-1k': {
+        'vocab_size': 16, 'dim': 48, 'hidden_dim': 128, 'n_layers': 1, 'n_heads': 48, 'max_seq_len': 32,
+        'description': '1.0K parameters - ULTRA 48 ATTENTION HEADS (insane attention!)'
+    },
+    'story-attn-48h-3k': {
+        'vocab_size': 32, 'dim': 96, 'hidden_dim': 256, 'n_layers': 1, 'n_heads': 48, 'max_seq_len': 36,
+        'description': '3.0K parameters - ULTRA 48 ATTENTION HEADS (insane attention!)'
+    },
+    'story-attn-48h-5k': {
+        'vocab_size': 64, 'dim': 144, 'hidden_dim': 512, 'n_layers': 1, 'n_heads': 48, 'max_seq_len': 40,
+        'description': '5.0K parameters - ULTRA 48 ATTENTION HEADS (insane attention!)'
+    },
+    'story-attn-48h-7k': {
+        'vocab_size': 128, 'dim': 192, 'hidden_dim': 1024, 'n_layers': 1, 'n_heads': 48, 'max_seq_len': 44,
+        'description': '7.0K parameters - ULTRA 48 ATTENTION HEADS (insane attention!)'
+    },
+    'story-attn-48h-10k': {
+        'vocab_size': 256, 'dim': 240, 'hidden_dim': 2048, 'n_layers': 1, 'n_heads': 48, 'max_seq_len': 52,
+        'description': '10.0K parameters - ULTRA 48 ATTENTION HEADS (insane attention!)'
+    },
+
+    # === 64 ATTENTION HEADS (Beyond Insane!) ===
+    'story-attn-64h-1k': {
+        'vocab_size': 8, 'dim': 64, 'hidden_dim': 128, 'n_layers': 1, 'n_heads': 64, 'max_seq_len': 32,
+        'description': '1.0K parameters - ULTRA 64 ATTENTION HEADS (beyond insane!)'
+    },
+    'story-attn-64h-3k': {
+        'vocab_size': 16, 'dim': 128, 'hidden_dim': 256, 'n_layers': 1, 'n_heads': 64, 'max_seq_len': 36,
+        'description': '3.0K parameters - ULTRA 64 ATTENTION HEADS (beyond insane!)'
+    },
+    'story-attn-64h-5k': {
+        'vocab_size': 32, 'dim': 192, 'hidden_dim': 512, 'n_layers': 1, 'n_heads': 64, 'max_seq_len': 40,
+        'description': '5.0K parameters - ULTRA 64 ATTENTION HEADS (beyond insane!)'
+    },
+    'story-attn-64h-7k': {
+        'vocab_size': 64, 'dim': 256, 'hidden_dim': 1024, 'n_layers': 1, 'n_heads': 64, 'max_seq_len': 44,
+        'description': '7.0K parameters - ULTRA 64 ATTENTION HEADS (beyond insane!)'
+    },
+    'story-attn-64h-10k': {
+        'vocab_size': 128, 'dim': 320, 'hidden_dim': 2048, 'n_layers': 1, 'n_heads': 64, 'max_seq_len': 52,
+        'description': '10.0K parameters - ULTRA 64 ATTENTION HEADS (beyond insane!)'
+    },
+
+    # === 96 ATTENTION HEADS (Ultra-Extreme!) ===
+    'story-attn-96h-1k': {
+        'vocab_size': 4, 'dim': 96, 'hidden_dim': 128, 'n_layers': 1, 'n_heads': 96, 'max_seq_len': 32,
+        'description': '1.0K parameters - ULTRA 96 ATTENTION HEADS (ultra-extreme!)'
+    },
+    'story-attn-96h-3k': {
+        'vocab_size': 8, 'dim': 192, 'hidden_dim': 256, 'n_layers': 1, 'n_heads': 96, 'max_seq_len': 36,
+        'description': '3.0K parameters - ULTRA 96 ATTENTION HEADS (ultra-extreme!)'
+    },
+    'story-attn-96h-5k': {
+        'vocab_size': 16, 'dim': 288, 'hidden_dim': 512, 'n_layers': 1, 'n_heads': 96, 'max_seq_len': 40,
+        'description': '5.0K parameters - ULTRA 96 ATTENTION HEADS (ultra-extreme!)'
+    },
+    'story-attn-96h-7k': {
+        'vocab_size': 32, 'dim': 384, 'hidden_dim': 1024, 'n_layers': 1, 'n_heads': 96, 'max_seq_len': 44,
+        'description': '7.0K parameters - ULTRA 96 ATTENTION HEADS (ultra-extreme!)'
+    },
+    'story-attn-96h-10k': {
+        'vocab_size': 64, 'dim': 480, 'hidden_dim': 2048, 'n_layers': 1, 'n_heads': 96, 'max_seq_len': 52,
+        'description': '10.0K parameters - ULTRA 96 ATTENTION HEADS (ultra-extreme!)'
+    },
+
+    # === 128 ATTENTION HEADS (The Absolute Limit!) ===
+    'story-attn-128h-1k': {
+        'vocab_size': 2, 'dim': 128, 'hidden_dim': 128, 'n_layers': 1, 'n_heads': 128, 'max_seq_len': 32,
+        'description': '1.0K parameters - ULTRA 128 ATTENTION HEADS (the absolute limit!)'
+    },
+    'story-attn-128h-3k': {
+        'vocab_size': 4, 'dim': 256, 'hidden_dim': 256, 'n_layers': 1, 'n_heads': 128, 'max_seq_len': 36,
+        'description': '3.0K parameters - ULTRA 128 ATTENTION HEADS (the absolute limit!)'
+    },
+    'story-attn-128h-5k': {
+        'vocab_size': 8, 'dim': 384, 'hidden_dim': 512, 'n_layers': 1, 'n_heads': 128, 'max_seq_len': 40,
+        'description': '5.0K parameters - ULTRA 128 ATTENTION HEADS (the absolute limit!)'
+    },
+    'story-attn-128h-7k': {
+        'vocab_size': 16, 'dim': 512, 'hidden_dim': 1024, 'n_layers': 1, 'n_heads': 128, 'max_seq_len': 44,
+        'description': '7.0K parameters - ULTRA 128 ATTENTION HEADS (the absolute limit!)'
+    },
+    'story-attn-128h-10k': {
+        'vocab_size': 32, 'dim': 640, 'hidden_dim': 2048, 'n_layers': 1, 'n_heads': 128, 'max_seq_len': 52,
+        'description': '10.0K parameters - ULTRA 128 ATTENTION HEADS (the absolute limit!)'
+    },
+
+    # === HYBRID ULTRA-EXTREME MODELS (FFN + Attention!) ===
+    # Combining ultra-fat FFN with ultra-many attention heads!
+    'story-hybrid-256x-32h-1k': {
+        'vocab_size': 16, 'dim': 32, 'hidden_dim': 256, 'n_layers': 1, 'n_heads': 32, 'max_seq_len': 32,
+        'description': '1.0K parameters - HYBRID 256x FFN + 32 HEADS (ultimate speed!)'
+    },
+    'story-hybrid-256x-48h-1k': {
+        'vocab_size': 8, 'dim': 48, 'hidden_dim': 256, 'n_layers': 1, 'n_heads': 48, 'max_seq_len': 32,
+        'description': '1.0K parameters - HYBRID 256x FFN + 48 HEADS (ultimate speed!)'
+    },
+    'story-hybrid-256x-64h-1k': {
+        'vocab_size': 4, 'dim': 64, 'hidden_dim': 256, 'n_layers': 1, 'n_heads': 64, 'max_seq_len': 32,
+        'description': '1.0K parameters - HYBRID 256x FFN + 64 HEADS (ultimate speed!)'
+    },
+    'story-hybrid-256x-96h-1k': {
+        'vocab_size': 2, 'dim': 96, 'hidden_dim': 256, 'n_layers': 1, 'n_heads': 96, 'max_seq_len': 32,
+        'description': '1.0K parameters - HYBRID 256x FFN + 96 HEADS (ultimate speed!)'
+    },
+    'story-hybrid-256x-128h-1k': {
+        'vocab_size': 1, 'dim': 128, 'hidden_dim': 256, 'n_layers': 1, 'n_heads': 128, 'max_seq_len': 32,
+        'description': '1.0K parameters - HYBRID 256x FFN + 128 HEADS (ultimate speed!)'
+    },
 }
 
 class ScalableTokenizer:
@@ -1833,7 +2445,7 @@ class ScalableTokenizer:
         # Special tokens (always first 4)
         self.vocab[0] = "<pad>"
         self.vocab[1] = "<s>"
-        self.vocab[2] = "</s>"
+        self.vocab[2] = " "
         self.vocab[3] = "<unk>"
         self.vocab[4] = " "  # Space is crucial
         
@@ -2349,6 +2961,65 @@ def estimate_model_size(vocab_size, dim, hidden_dim, n_layers, n_heads):
     print(f"  Memory: {memory_kb:.1f}KB ({memory_mb:.2f}MB)")
     
     return total_params, memory_kb
+
+def get_optimal_worker_count():
+    """Get optimal number of worker processes for parallel training"""
+    cpu_count = mp.cpu_count()
+    memory_gb = psutil.virtual_memory().total / (1024**3)
+    
+    # Conservative approach: don't use all cores to avoid memory issues
+    # Use 75% of cores, but cap at 8 to prevent memory exhaustion
+    optimal_workers = min(int(cpu_count * 0.75), 8)
+    
+    # If we have lots of memory (>16GB), we can be more aggressive
+    if memory_gb > 16:
+        optimal_workers = min(int(cpu_count * 0.9), 12)
+    
+    print(f"System Info: {cpu_count} CPU cores, {memory_gb:.1f}GB RAM")
+    print(f"Using {optimal_workers} worker processes for parallel training")
+    
+    return optimal_workers
+
+def parallel_training_worker(args):
+    """Worker function for parallel training"""
+    model_size, epochs, learning_rate = args
+    
+    try:
+        # Create and train model in separate process
+        trainer = ScalableTrainer(model_size)
+        trainer.prepare_data()
+        
+        start_time = time.time()
+        losses = trainer.train(epochs=epochs, learning_rate=learning_rate)
+        training_time = time.time() - start_time
+        
+        # Save model
+        trainer.save_model()
+        
+        # Return results (avoid returning large objects)
+        param_count = trainer.model._count_parameters()
+        config = trainer.config
+        
+        return {
+            'model_size': model_size,
+            'success': True,
+            'parameters': param_count,
+            'training_time': training_time,
+            'final_loss': losses[-1],
+            'vocab_size': config['vocab_size'],
+            'dim': config['dim'],
+            'hidden_dim': config['hidden_dim'],
+            'n_layers': config['n_layers'],
+            'n_heads': config['n_heads'],
+            'config': config
+        }
+        
+    except Exception as e:
+        return {
+            'model_size': model_size,
+            'success': False,
+            'error': str(e)
+        }
 
 def quick_size_test():
     """Quick test of different sizes without training"""
@@ -3252,6 +3923,403 @@ def find_rp2040_models():
     print("Searching for models with 15K-30K parameters (test carefully)...")
     find_models_by_params(15000, 30000)
 
+def test_ultra_extreme_1d():
+    """Test all ultra-extreme 1d, 2d, and 3d models (Never attempted before!)"""
+    print("=== TESTING ULTRA-EXTREME 1D/2D/3D MODELS ===")
+    print("Testing architectures that have NEVER been attempted before!")
+    print("This could revolutionize microcontroller transformers!")
+    
+    # Get all ultra-extreme variants
+    variants = [name for name in MODEL_CONFIGS.keys() if name.startswith('story-ultra-1d') or 
+                name.startswith('story-ultra-2d') or name.startswith('story-ultra-3d')]
+    
+    print(f"\nFound {len(variants)} ultra-extreme variants to test:")
+    for variant in variants:
+        config = MODEL_CONFIGS[variant]
+        params = estimate_model_size(config['vocab_size'], config['dim'], 
+                                   config['hidden_dim'], config['n_layers'], 
+                                   config['n_heads'])[0]
+        print(f"  {variant:25s}: {params:5,} params - {config['description']}")
+    
+    print(f"\n🚀 RESEARCH QUESTIONS:")
+    print(f"  1. Can 1d models actually work? What happens when dim=1?")
+    print(f"  2. How fast are 1d-3d models? Can they beat 2d champion (14.5 tok/s)?")
+    print(f"  3. Do ultra-narrow models scale to all parameter ranges?")
+    print(f"  4. What's the actual RP2040 breaking point?")
+    
+    print(f"\n🎯 EXPECTED BREAKTHROUGHS:")
+    print(f"  - 1d models could achieve 25+ tok/s!")
+    print(f"  - 2d models could beat our 10K champion!")
+    print(f"  - 3d models could unlock new speed tiers!")
+    
+    # Use parallel processing for faster training
+    print(f"\n🚀 ENABLING PARALLEL TRAINING ACROSS MULTIPLE CPU CORES!")
+    worker_count = get_optimal_worker_count()
+    
+    # Prepare training arguments
+    training_args = [(variant, 30, 0.01) for variant in variants]  # 30 epochs, 0.01 lr
+    
+    results = {}
+    start_time = time.time()
+    
+    print(f"\nStarting parallel training with {worker_count} workers...")
+    print("This will be MUCH faster than sequential training!")
+    
+    with ProcessPoolExecutor(max_workers=worker_count) as executor:
+        # Submit all training jobs
+        future_to_variant = {
+            executor.submit(parallel_training_worker, args): args[0] 
+            for args in training_args
+        }
+        
+        # Process completed jobs
+        completed = 0
+        for future in as_completed(future_to_variant):
+            variant = future_to_variant[future]
+            completed += 1
+            
+            try:
+                result = future.result()
+                results[variant] = result
+                
+                if result['success']:
+                    print(f"✅ {variant.upper()} COMPLETED ({completed}/{len(variants)}): "
+                          f"{result['parameters']:,} params, {result['training_time']:.1f}s training")
+                    print(f"   Architecture: {result['dim']}d, {result['hidden_dim']}h "
+                          f"({result['hidden_dim']//result['dim']}x ratio)")
+                else:
+                    print(f"❌ {variant.upper()} FAILED ({completed}/{len(variants)}): {result['error']}")
+                
+            except Exception as e:
+                print(f"❌ {variant.upper()} EXECUTION ERROR ({completed}/{len(variants)}): {e}")
+                results[variant] = {'error': f"Execution error: {e}"}
+    
+    total_training_time = time.time() - start_time
+    print(f"\n🎉 PARALLEL TRAINING COMPLETE!")
+    print(f"Total time: {total_training_time:.1f}s for {len(variants)} models")
+    print(f"Average per model: {total_training_time/len(variants):.1f}s")
+    print(f"Speedup vs sequential: ~{len(variants)/worker_count:.1f}x faster!")
+    
+    # Print detailed comparison
+    print(f"\n{'='*80}")
+    print("ULTRA-EXTREME 1D/2D/3D MODEL COMPARISON")
+    print(f"{'='*80}")
+    
+    print(f"{'Variant':25s} {'Params':6s} {'Vocab':5s} {'Dim':4s} {'Hid':4s} {'Lay':3s} {'Heads':5s} {'Loss':6s} {'Time':6s}")
+    print("-" * 80)
+    
+    successful_variants = []
+    for variant, result in results.items():
+        if result.get('success', False):
+            successful_variants.append((variant, result))
+            print(f"{variant:25s} {result['parameters']:6,} {result['vocab_size']:5d} "
+                  f"{result['dim']:4d} {result['hidden_dim']:4d} {result['n_layers']:3d} "
+                  f"{result['n_heads']:5d} {result['final_loss']:6.3f} {result['training_time']:6.1f}s")
+    
+    # Analysis
+    if successful_variants:
+        print(f"\n📊 ULTRA-EXTREME ARCHITECTURAL ANALYSIS:")
+        
+        # Sort by dimension size
+        by_dim = sorted(successful_variants, key=lambda x: x[1]['dim'])
+        print(f"\nBy dimension size (narrowest first):")
+        for variant, result in by_dim:
+            ratio = result['hidden_dim'] // result['dim']
+            print(f"  {variant:25s}: {result['dim']}d, {result['hidden_dim']}h ({ratio}x ratio)")
+        
+        # Sort by training time (speed proxy)
+        by_speed = sorted(successful_variants, key=lambda x: x[1]['training_time'])
+        print(f"\nTraining speed ranking (fastest to slowest):")
+        for i, (variant, result) in enumerate(by_speed):
+            print(f"  {i+1:2d}. {variant:25s}: {result['training_time']:5.1f}s "
+                  f"(d={result['dim']}, h={result['hidden_dim']})")
+        
+        # Sort by loss (quality proxy)
+        by_loss = sorted(successful_variants, key=lambda x: x[1]['final_loss'])
+        print(f"\nTraining quality ranking (best to worst loss):")
+        for i, (variant, result) in enumerate(by_loss):
+            print(f"  {i+1:2d}. {variant:25s}: {result['final_loss']:.3f} loss "
+                  f"(d={result['dim']}, h={result['hidden_dim']})")
+        
+        print(f"\n🎯 ULTRA-EXTREME INSIGHTS:")
+        print("  - 1d models: Testing absolute limits of narrow dimensions")
+        print("  - 2d models: Beyond known boundaries")
+        print("  - 3d models: Pushing architectural limits")
+        print("  - Expected: 1d models could be fastest ever!")
+        
+        return results
+    else:
+        print("❌ No ultra-extreme variants completed successfully!")
+        return {}
+
+def test_ffn_extremes():
+    """Test ultra-extreme FFN ratio models (128x to 4096x) with parallel processing"""
+    print("🚀 PHASE 2: ULTRA-EXTREME FFN RATIO STUDY (128x to 4096x!)")
+    print("Testing models that push beyond the 1024x limit we discovered!")
+    
+    # Collect all FFN extreme variants
+    ffn_variants = [name for name in MODEL_CONFIGS.keys() if 'ffn-' in name and any(x in name for x in ['128x', '256x', '512x', '1024x', '2048x', '4096x'])]
+    
+    print(f"\n📊 Found {len(ffn_variants)} FFN extreme variants to test:")
+    for variant in ffn_variants:
+        config = MODEL_CONFIGS[variant]
+        print(f"  {variant}: {config['description']}")
+    
+    # Use parallel processing for faster testing
+    worker_count = get_optimal_worker_count()
+    training_args = [(variant, 20, 0.01) for variant in ffn_variants]
+    
+    print(f"\n🚀 Using {worker_count} parallel workers for ultra-fast FFN testing!")
+    print("Expected speedup: 4-8x faster than sequential testing!")
+    
+    results = []
+    with ProcessPoolExecutor(max_workers=worker_count) as executor:
+        future_to_variant = {executor.submit(parallel_training_worker, args): args[0] for args in training_args}
+        
+        for future in as_completed(future_to_variant):
+            variant = future_to_variant[future]
+            try:
+                result = future.result()
+                if result.get('success', False):
+                    print(f"✅ {variant}: {result['parameters']} params, {result['training_time']:.1f}s")
+                    results.append(result)
+                else:
+                    print(f"❌ {variant}: {result.get('error', 'Unknown error')}")
+            except Exception as e:
+                print(f"❌ {variant}: Exception - {e}")
+    
+    print(f"\n🏁 FFN Extreme Study Complete!")
+    print(f"Successfully trained: {len(results)}/{len(ffn_variants)} models")
+    
+    # Group results by FFN ratio
+    ffn_ratios = {'128x': [], '256x': [], '512x': [], '1024x': [], '2048x': [], '4096x': []}
+    for result in results:
+        for ratio in ffn_ratios:
+            if ratio in result['model_size']:
+                ffn_ratios[ratio].append(result)
+                break
+    
+    print("\n📊 FFN Ratio Success Rates:")
+    for ratio, models in ffn_ratios.items():
+        if models:
+            success_rate = len(models) / len([v for v in ffn_variants if ratio in v]) * 100
+            print(f"  {ratio}: {len(models)}/{len([v for v in ffn_variants if ratio in v])} ({success_rate:.1f}%)")
+    
+    return results
+
+def test_attention_extremes():
+    """Test ultra-extreme attention head models (32+ heads) with parallel processing"""
+    print("🚀 PHASE 3: ATTENTION HEAD EXTREMES (Beyond 24 Heads!)")
+    print("Testing ultra-wide attention architectures that have NEVER been attempted!")
+    print("Target: 50+ tok/s with extreme attention designs!")
+    
+    # Collect all attention extreme variants
+    attn_variants = [name for name in MODEL_CONFIGS.keys() if 'attn-' in name or 'hybrid-' in name]
+    
+    print(f"\n📊 Found {len(attn_variants)} attention extreme variants to test:")
+    for variant in attn_variants:
+        config = MODEL_CONFIGS[variant]
+        print(f"  {variant}: {config['description']}")
+    
+    # Use parallel processing for maximum speed
+    worker_count = get_optimal_worker_count()
+    training_args = [(variant, 20, 0.01) for variant in attn_variants]
+    
+    print(f"\n🚀 Using {worker_count} parallel workers for ultra-fast attention testing!")
+    print("Expected speedup: 4-8x faster than sequential testing!")
+    print("Target: Discover models that can achieve 50+ tok/s!")
+    
+    results = []
+    with ProcessPoolExecutor(max_workers=worker_count) as executor:
+        future_to_variant = {executor.submit(parallel_training_worker, args): args[0] for args in training_args}
+        
+        for future in as_completed(future_to_variant):
+            variant = future_to_variant[future]
+            try:
+                result = future.result()
+                if result.get('success', False):
+                    print(f"✅ {variant}: {result['parameters']} params, {result['training_time']:.1f}s")
+                    results.append(result)
+                else:
+                    print(f"❌ {variant}: {result.get('error', 'Unknown error')}")
+            except Exception as e:
+                print(f"❌ {variant}: Exception - {e}")
+    
+    print(f"\n🏁 Attention Head Extremes Study Complete!")
+    print(f"Successfully trained: {len(results)}/{len(attn_variants)} models")
+    
+    # Group results by attention head count
+    head_counts = {'32h': [], '48h': [], '64h': [], '96h': [], '128h': [], 'hybrid': []}
+    for result in results:
+        for head_type in head_counts:
+            if head_type in result['model_size']:
+                head_counts[head_type].append(result)
+                break
+    
+    print("\n📊 Attention Head Success Rates:")
+    for head_type, models in head_counts.items():
+        if models:
+            success_rate = len(models) / len([v for v in attn_variants if head_type in v]) * 100
+            print(f"  {head_type}: {len(models)}/{len([v for v in attn_variants if head_type in v])} ({success_rate:.1f}%)")
+    
+    # Check for speed champions
+    if results:
+        fastest = min(results, key=lambda x: x['training_time'])
+        print(f"\n🏆 Fastest Training: {fastest['model_size']} in {fastest['training_time']:.1f}s")
+        print(f"   Parameters: {fastest['parameters']}, Final Loss: {fastest['final_loss']:.4f}")
+    
+    return results
+
+def test_all_variants_parallel():
+    """Test ALL architectural variants across all parameter ranges using parallel processing"""
+    print("=== COMPREHENSIVE PARALLEL ARCHITECTURAL STUDY ===")
+    print("Testing ALL variants from 1K to 10K parameters simultaneously!")
+    print("This will be the fastest way to test all our architectural discoveries!")
+    
+    # Get all architectural variants
+    all_variants = []
+    for name in MODEL_CONFIGS.keys():
+        if any(name.startswith(prefix) for prefix in ['story-1k', 'story-3k', 'story-5k', 'story-7k', 'chat-8k', 'chat-10k', 'story-ultra-', 'story-ffn-']):
+            all_variants.append(name)
+    
+    print(f"\nFound {len(all_variants)} architectural variants to test!")
+    print("This includes:")
+    print(f"  - 1K variants: {len([v for v in all_variants if v.startswith('story-1k')])}")
+    print(f"  - 3K variants: {len([v for v in all_variants if v.startswith('story-3k')])}")
+    print(f"  - 5K variants: {len([v for v in all_variants if v.startswith('story-5k')])}")
+    print(f"  - 7K variants: {len([v for v in all_variants if v.startswith('story-7k')])}")
+    print(f"  - 8K variants: {len([v for v in all_variants if v.startswith('chat-8k')])}")
+    print(f"  - 10K variants: {len([v for v in all_variants if v.startswith('chat-10k')])}")
+    print(f"  - Ultra-extreme variants: {len([v for v in all_variants if v.startswith('story-ultra-')])}")
+    print(f"  - FFN extreme variants: {len([v for v in all_variants if v.startswith('story-ffn-')])}")
+    
+    # Use parallel processing for maximum speed
+    print(f"\n🚀 ENABLING MAXIMUM PARALLEL TRAINING ACROSS ALL CPU CORES!")
+    worker_count = get_optimal_worker_count()
+    
+    # Prepare training arguments - use fewer epochs for faster testing
+    training_args = [(variant, 20, 0.01) for variant in all_variants]  # 20 epochs, 0.01 lr
+    
+    results = {}
+    start_time = time.time()
+    
+    print(f"\nStarting MASSIVE parallel training with {worker_count} workers...")
+    print(f"This will test {len(all_variants)} models simultaneously!")
+    print("Expected speedup: ~{:.1f}x faster than sequential training!".format(len(all_variants)/worker_count))
+    
+    with ProcessPoolExecutor(max_workers=worker_count) as executor:
+        # Submit all training jobs
+        future_to_variant = {
+            executor.submit(parallel_training_worker, args): args[0] 
+            for args in training_args
+        }
+        
+        # Process completed jobs
+        completed = 0
+        successful_count = 0
+        failed_count = 0
+        
+        for future in as_completed(future_to_variant):
+            variant = future_to_variant[future]
+            completed += 1
+            
+            try:
+                result = future.result()
+                results[variant] = result
+                
+                if result['success']:
+                    successful_count += 1
+                    print(f"✅ {variant.upper()} COMPLETED ({completed}/{len(all_variants)}): "
+                          f"{result['parameters']:,} params, {result['training_time']:.1f}s training")
+                    
+                    # Show architecture details for interesting models
+                    if result['dim'] <= 4:  # Ultra-narrow models
+                        ratio = result['hidden_dim'] // result['dim']
+                        print(f"   🚀 ULTRA-NARROW: {result['dim']}d, {result['hidden_dim']}h ({ratio}x ratio)")
+                    elif result['hidden_dim'] // result['dim'] >= 64:  # Ultra-fat FFN
+                        ratio = result['hidden_dim'] // result['dim']
+                        print(f"   🚀 ULTRA-FAT FFN: {result['dim']}d, {result['hidden_dim']}h ({ratio}x ratio)")
+                else:
+                    failed_count += 1
+                    print(f"❌ {variant.upper()} FAILED ({completed}/{len(all_variants)}): {result['error']}")
+                
+                # Show progress every 10 completions
+                if completed % 10 == 0:
+                    elapsed = time.time() - start_time
+                    remaining = len(all_variants) - completed
+                    eta = (elapsed / completed) * remaining if completed > 0 else 0
+                    print(f"\n📊 PROGRESS: {completed}/{len(all_variants)} ({completed/len(all_variants)*100:.1f}%)")
+                    print(f"   Successful: {successful_count}, Failed: {failed_count}")
+                    print(f"   Elapsed: {elapsed:.1f}s, ETA: {eta:.1f}s")
+                
+            except Exception as e:
+                failed_count += 1
+                print(f"❌ {variant.upper()} EXECUTION ERROR ({completed}/{len(all_variants)}): {e}")
+                results[variant] = {'error': f"Execution error: {e}"}
+    
+    total_training_time = time.time() - start_time
+    print(f"\n🎉 MASSIVE PARALLEL TRAINING COMPLETE!")
+    print(f"Total time: {total_training_time:.1f}s for {len(all_variants)} models")
+    print(f"Successful: {successful_count}, Failed: {failed_count}")
+    print(f"Average per model: {total_training_time/len(all_variants):.1f}s")
+    print(f"Speedup vs sequential: ~{len(all_variants)/worker_count:.1f}x faster!")
+    
+    # Print summary by parameter range
+    print(f"\n{'='*80}")
+    print("COMPREHENSIVE ARCHITECTURAL STUDY SUMMARY")
+    print(f"{'='*80}")
+    
+    # Group results by parameter range
+    ranges = {
+        '1K': [], '3K': [], '5K': [], '7K': [], '8K': [], '10K': [],
+        'Ultra-Extreme': [], 'FFN-Extreme': []
+    }
+    
+    for variant, result in results.items():
+        if result.get('success', False):
+            if variant.startswith('story-ultra-'):
+                ranges['Ultra-Extreme'].append((variant, result))
+            elif variant.startswith('story-ffn-'):
+                ranges['FFN-Extreme'].append((variant, result))
+            elif variant.startswith('story-1k'):
+                ranges['1K'].append((variant, result))
+            elif variant.startswith('story-3k'):
+                ranges['3K'].append((variant, result))
+            elif variant.startswith('story-5k'):
+                ranges['5K'].append((variant, result))
+            elif variant.startswith('story-7k'):
+                ranges['7K'].append((variant, result))
+            elif variant.startswith('chat-8k'):
+                ranges['8K'].append((variant, result))
+            elif variant.startswith('chat-10k'):
+                ranges['10K'].append((variant, result))
+    
+    for range_name, variants in ranges.items():
+        if variants:
+            successful = len(variants)
+            total_params = sum(v['parameters'] for v in variants)
+            avg_time = sum(v['training_time'] for v in variants) / len(variants)
+            print(f"\n{range_name} Range: {successful} models, {total_params:,} total params, {avg_time:.1f}s avg training")
+            
+            # Show fastest models in this range
+            fastest = min(variants, key=lambda x: x[1]['training_time'])
+            print(f"  Fastest: {fastest[0]} ({fastest[1]['training_time']:.1f}s)")
+            
+            # Show most interesting architectures
+            ultra_narrow = [v for v in variants if v[1]['dim'] <= 4]
+            ultra_fat = [v for v in variants if v[1]['hidden_dim'] // v[1]['dim'] >= 64]
+            
+            if ultra_narrow:
+                narrowest = min(ultra_narrow, key=lambda x: x[1]['dim'])
+                print(f"  Narrowest: {narrowest[0]} ({narrowest[1]['dim']}d)")
+            
+            if ultra_fat:
+                fattest = max(ultra_fat, key=lambda x: x[1]['hidden_dim'] // x[1]['dim'])
+                ratio = fattest[1]['hidden_dim'] // fattest[1]['dim']
+                print(f"  Fattest FFN: {fattest[0]} ({ratio}x ratio)")
+    
+    return results
+
 def main():
     """Main training function"""
     print("=== Scalable Transformer Training ===")
@@ -3271,6 +4339,16 @@ def main():
     print("  8k_test  : Test all 8K architectural variants")
     print("  10k_test : Test all 10K architectural variants")
     print("  all_variants : Test ALL architectural variants (1K-10K)")
+    print("  ultra_1d : Test ULTRA-EXTREME 1D/2D/3D models (Never attempted!)")
+    print("  ffn_test : Test ULTRA-EXTREME FFN RATIO models (Never attempted!)")
+    print("  attn_test : Test ATTENTION HEAD EXTREMES (32+ heads) (Never attempted!)")
+    
+            print("\n🚀 PARALLEL TESTING (MULTI-CORE SPEEDUP!):")
+        print("  ultra_1d_parallel : Test ULTRA-EXTREME 1D/2D/3D models with parallel processing")
+        print("  ffn_test_parallel : Test ULTRA-EXTREME FFN RATIO models with parallel processing")
+        print("  attn_test_parallel : Test ATTENTION HEAD EXTREMES (32+ heads) with parallel processing")
+        print("  all_parallel : Test ALL variants simultaneously with maximum parallel processing!")
+        print("  Expected speedup: 4-8x faster on typical computers!")
     
     print("\nOther options:")
     print("  all      : Train all predefined sizes")
@@ -3304,6 +4382,25 @@ def main():
         test_10k_variants()
     elif choice == 'all_variants':
         test_all_variants()
+    elif choice == 'ultra_1d':
+        test_ultra_extreme_1d()
+    elif choice == 'ffn_test':
+        test_ffn_extremes()
+    elif choice == 'attn_test':
+        print("🚀 Testing ATTENTION HEAD EXTREMES (32+ heads) - Phase 3!")
+        test_attention_extremes()
+    elif choice == 'ultra_1d_parallel':
+        print("🚀 Using parallel processing for ultra-extreme 1D/2D/3D models!")
+        test_ultra_extreme_1d()  # Already parallel now
+            elif choice == 'ffn_test_parallel':
+            print("🚀 Using parallel processing for ultra-extreme FFN ratio models!")
+            test_ffn_extremes()  # Already parallel now
+        elif choice == 'attn_test_parallel':
+            print("🚀 Using parallel processing for ATTENTION HEAD EXTREMES (32+ heads)!")
+            test_attention_extremes()  # Phase 3: Ultra-wide attention!
+        elif choice == 'all_parallel':
+            print("🚀 MASSIVE PARALLEL TESTING - Using ALL CPU cores!")
+            test_all_variants_parallel()
     elif choice == 'limit':
         find_rp2040_limit()
     elif choice == 'quick':

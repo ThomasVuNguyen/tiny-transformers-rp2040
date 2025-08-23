@@ -1,0 +1,9 @@
+{
+  "vocab_size": 768,
+  "dim": 3,
+  "hidden_dim": 768,
+  "n_layers": 1,
+  "n_heads": 1,
+  "max_seq_len": 44,
+  "description": "7.0K parameters - ULTRA 3D MODEL (pushing boundaries!)"
+}

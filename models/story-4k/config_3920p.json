@@ -1,0 +1,9 @@
+{
+  "vocab_size": 112,
+  "dim": 14,
+  "hidden_dim": 56,
+  "n_layers": 1,
+  "n_heads": 2,
+  "max_seq_len": 40,
+  "description": "3.9K parameters - Story generation"
+}

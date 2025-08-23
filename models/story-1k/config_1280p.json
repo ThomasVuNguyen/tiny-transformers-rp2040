@@ -5,5 +5,5 @@
   "n_layers": 1,
   "n_heads": 2,
   "max_seq_len": 32,
-  "description": "~1K parameters - Story generation"
+  "description": "1.3K parameters - Story generation"
 }

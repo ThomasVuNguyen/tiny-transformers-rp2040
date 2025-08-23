@@ -1,0 +1,9 @@
+{
+  "vocab_size": 1024,
+  "dim": 128,
+  "hidden_dim": 512,
+  "n_layers": 6,
+  "n_heads": 32,
+  "max_seq_len": 128,
+  "description": "1310.7K parameters - Expert tasks"
+}

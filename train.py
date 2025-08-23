@@ -2,14 +2,16 @@
 Scalable Transformer Training Script
 Test different model sizes to find RP2040 limits
 
-Model Size Presets:
-- Tiny (1K):     vocab=64,  dim=8,   layers=1, heads=2  
-- Small (5K):    vocab=128, dim=16,  layers=2, heads=4
-- Medium (20K):  vocab=256, dim=32,  layers=3, heads=8
-- Large (80K):   vocab=512, dim=64,  layers=4, heads=16
-- XLarge (300K): vocab=1024,dim=128, layers=6, heads=32
+Model Size Presets (actual parameter counts):
+- story-1k (1.3K):    vocab=64,  dim=8,   layers=1, heads=2  
+- chat-8k (8.2K):     vocab=128, dim=16,  layers=2, heads=4
+- chat-10k (10.4K):   vocab=144, dim=18,  layers=2, heads=3
+- chat-18k (18.4K):   vocab=192, dim=24,  layers=2, heads=4
+- assistant-45k (45K): vocab=256, dim=32,  layers=3, heads=8
+- expert-229k (229K):  vocab=512, dim=64,  layers=4, heads=16
+- expert-1310k (1.3M): vocab=1024,dim=128, layers=6, heads=32
 
-We'll test each size on RP2040 until we hit memory/speed limits
+Names now reflect actual parameter counts, not approximations
 """
 
 import numpy as np
@@ -20,7 +22,7 @@ import os
 from collections import Counter
 import json
 
-# Model size presets - we'll test each one
+# Model size presets - names reflect actual parameter counts
 MODEL_CONFIGS = {
     'story-1k': {
         'vocab_size': 64,
@@ -29,115 +31,115 @@ MODEL_CONFIGS = {
         'n_layers': 1,
         'n_heads': 2,
         'max_seq_len': 32,
-        'description': '~1K parameters - Story generation'
+        'description': '1.3K parameters - Story generation'
     },
-    'story-2k': {
+    'story-3k': {
         'vocab_size': 96,
         'dim': 12,
         'hidden_dim': 48,  # 4x dim
         'n_layers': 1,
         'n_heads': 3,
         'max_seq_len': 36,
-        'description': '~2K parameters - Story generation'
+        'description': '2.9K parameters - Story generation'
     },
-    'story-3k': {
+    'story-4k': {
         'vocab_size': 112,
         'dim': 14,
         'hidden_dim': 56,  # 4x dim
         'n_layers': 1,
         'n_heads': 2,
         'max_seq_len': 40,
-        'description': '~3K parameters - Story generation'
+        'description': '3.9K parameters - Story generation'
     },
-    'chat-5k': {
+    'chat-8k': {
         'vocab_size': 128,
         'dim': 16,
         'hidden_dim': 64,
         'n_layers': 2,
         'n_heads': 4,
         'max_seq_len': 48,
-        'description': '~5K parameters - Chat responses'
+        'description': '8.2K parameters - Chat responses'
     },
-    'chat-7k': {
+    'chat-10k': {
         'vocab_size': 144,
         'dim': 18,
         'hidden_dim': 72,  # 4x dim
         'n_layers': 2,
         'n_heads': 3,
         'max_seq_len': 52,
-        'description': '~7K parameters - Chat responses'
+        'description': '10.4K parameters - Chat responses'
     },
-    'chat-10k': {
+    'chat-13k': {
         'vocab_size': 160,
         'dim': 20,
         'hidden_dim': 80,  # 4x dim
         'n_layers': 2,
         'n_heads': 4,
         'max_seq_len': 56,
-        'description': '~10K parameters - Chat responses'
+        'description': '12.8K parameters - Chat responses'
     },
-    'chat-13k': {
+    'chat-18k': {
         'vocab_size': 192,
         'dim': 24,
         'hidden_dim': 96,  # 4x dim
         'n_layers': 2,
         'n_heads': 4,
         'max_seq_len': 60,
-        'description': '~13K parameters - Chat responses'
+        'description': '18.4K parameters - Chat responses'
     },
-    'assistant-20k': {
+    'assistant-45k': {
         'vocab_size': 256,
         'dim': 32,
         'hidden_dim': 128,
         'n_layers': 3,
         'n_heads': 8,
         'max_seq_len': 64,
-        'description': '~20K parameters - Assistant tasks'
+        'description': '45.1K parameters - Assistant tasks'
     },
-    'assistant-25k': {
+    'assistant-57k': {
         'vocab_size': 288,
         'dim': 36,
         'hidden_dim': 144,  # 4x dim
         'n_layers': 3,
         'n_heads': 6,
         'max_seq_len': 68,
-        'description': '~25K parameters - Assistant tasks'
+        'description': '57.0K parameters - Assistant tasks'
     },
-    'assistant-30k': {
+    'assistant-70k': {
         'vocab_size': 320,
         'dim': 40,
         'hidden_dim': 160,  # 4x dim
         'n_layers': 3,
         'n_heads': 8,
         'max_seq_len': 72,
-        'description': '~30K parameters - Assistant tasks'
+        'description': '70.4K parameters - Assistant tasks'
     },
-    'assistant-40k': {
+    'assistant-101k': {
         'vocab_size': 384,
         'dim': 48,
         'hidden_dim': 192,  # 4x dim
         'n_layers': 3,
         'n_heads': 8,
         'max_seq_len': 80,
-        'description': '~40K parameters - Assistant tasks'
+        'description': '101.4K parameters - Assistant tasks'
     },
-    'expert-80k': {
+    'expert-229k': {
         'vocab_size': 512,
         'dim': 64,
         'hidden_dim': 256,
         'n_layers': 4,
         'n_heads': 16,
         'max_seq_len': 96,
-        'description': '~80K parameters - Expert tasks'
+        'description': '229.4K parameters - Expert tasks'
     },
-    'expert-300k': {
+    'expert-1310k': {
         'vocab_size': 1024,
         'dim': 128,
         'hidden_dim': 512,
         'n_layers': 6,
         'n_heads': 32,
         'max_seq_len': 128,
-        'description': '~300K parameters - Expert tasks'
+        'description': '1310.7K parameters - Expert tasks'
     }
 }
 
@@ -677,18 +679,18 @@ def quick_size_test():
     print("=== Quick Model Size Test ===")
     print("Testing different configurations...")
     
-    # Test some intermediate sizes
+    # Test some intermediate sizes with accurate naming
     test_configs = [
-        (128, 16, 64, 2, 4),      # ~5K params (chat-5k)
-        (144, 18, 72, 2, 3),      # ~7K params (chat-7k)
-        (160, 20, 80, 2, 4),      # ~10K params (chat-10k)
-        (192, 24, 96, 2, 4),      # ~13K params (chat-13k)
-        (224, 28, 112, 2, 4),     # ~17K params
-        (256, 32, 128, 3, 8),     # ~20K params (assistant-20k)
-        (288, 36, 144, 3, 6),     # ~25K params (assistant-25k)
-        (320, 40, 160, 3, 8),     # ~30K params (assistant-30k)
-        (384, 48, 192, 3, 8),     # ~40K params (assistant-40k)
-        (448, 56, 224, 3, 8),     # ~50K params
+        (128, 16, 64, 2, 4),      # 8.2K params (chat-8k)
+        (144, 18, 72, 2, 3),      # 10.4K params (chat-10k)
+        (160, 20, 80, 2, 4),      # 12.8K params (chat-13k)
+        (192, 24, 96, 2, 4),      # 18.4K params (chat-18k)
+        (224, 28, 112, 2, 4),     # ~25K params
+        (256, 32, 128, 3, 8),     # 45.1K params (assistant-45k)
+        (288, 36, 144, 3, 6),     # 57.0K params (assistant-57k)
+        (320, 40, 160, 3, 8),     # 70.4K params (assistant-70k)
+        (384, 48, 192, 3, 8),     # 101.4K params (assistant-101k)
+        (448, 56, 224, 3, 8),     # ~150K params
     ]
     
     print("\nSize estimates:")
@@ -700,7 +702,7 @@ def test_all_sizes():
     """Test training all model sizes"""
     results = {}
     
-    for size_name in ['story-1k', 'story-2k', 'story-3k', 'chat-5k', 'chat-7k', 'chat-10k', 'chat-13k', 'assistant-20k', 'assistant-25k', 'assistant-30k', 'assistant-40k', 'expert-80k', 'expert-300k']:
+    for size_name in ['story-1k', 'story-3k', 'story-4k', 'chat-8k', 'chat-10k', 'chat-13k', 'chat-18k', 'assistant-45k', 'assistant-57k', 'assistant-70k', 'assistant-101k', 'expert-229k', 'expert-1310k']:
         print(f"\n{'='*50}")
         print(f"TESTING {size_name.upper()} MODEL")
         print(f"{'='*50}")
@@ -755,7 +757,7 @@ def find_rp2040_limit():
     print("Testing models in order until one fails...")
     
     # Test sizes in ascending order of parameters
-    test_sizes = ['story-1k', 'story-2k', 'story-3k', 'chat-5k', 'chat-7k', 'chat-10k', 'chat-13k', 'assistant-20k', 'assistant-25k', 'assistant-30k', 'assistant-40k', 'expert-80k', 'expert-300k']
+    test_sizes = ['story-1k', 'story-3k', 'story-4k', 'chat-8k', 'chat-10k', 'chat-13k', 'chat-18k', 'assistant-45k', 'assistant-57k', 'assistant-70k', 'assistant-101k', 'expert-229k', 'expert-1310k']
     
     working_models = []
     failed_models = []

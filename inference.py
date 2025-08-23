@@ -1,17 +1,23 @@
 """
-Scalable RP2040 Inference Script
+Scalable RP2040 Inference Script for CircuitPython
 Automatically detects and loads any model size
 
 Supports model sizes from 1K to 300K+ parameters
 Will test memory limits and inference speed
 
 Usage:
-1. Copy model files from Windows training:
-   - model_[size].bin (e.g., model_tiny.bin, model_small.bin)
-   - vocab_[size].bin  
-   - config_[size].json (optional)
+1. Copy model files from Windows training to models/ folder:
+   - models/[model-name]/model_[params]p.bin
+   - models/[model-name]/vocab_[params]p.bin
+   - models/[model-name]/config_[params]p.json
 2. This script will auto-detect available models
 3. You can test multiple models to find RP2040 limits
+
+CircuitPython Notes:
+- Uses os.listdir() for directory operations
+- CircuitPython-compatible file operations
+- Memory management optimized for RP2040
+- No pre-configuration needed - just scan and use
 """
 
 import gc
@@ -20,9 +26,30 @@ import math
 import time
 import microcontroller
 import json
+import os
+
+# ============================================================================
+# CIRCUITPYTHON CONFIGURATION - Edit these variables as needed
+# ============================================================================
+
+# Model folder structure
+MODELS_DIR = "models"  # Main models directory
+
+# File naming patterns (used for detection)
+MODEL_FILE_PATTERN = "model_{params}p.bin"      # e.g., "model_1024p.bin"
+VOCAB_FILE_PATTERN = "vocab_{params}p.bin"     # e.g., "vocab_1024p.bin"
+CONFIG_FILE_PATTERN = "config_{params}p.json"  # e.g., "config_1024p.json"
+
+# Legacy file patterns (for backward compatibility)
+LEGACY_MODEL_PATTERN = "model_{name}.bin"      # e.g., "model_tiny.bin"
+LEGACY_VOCAB_PATTERN = "vocab_{name}.bin"     # e.g., "vocab_tiny.bin"
+
+# ============================================================================
+# END CONFIGURATION
+# ============================================================================
 
 class MemoryManager:
-    """Enhanced memory management with detailed reporting"""
+    """Enhanced memory management with detailed reporting for CircuitPython"""
     
     def __init__(self):
         self.initial_free = gc.mem_free()
@@ -30,9 +57,16 @@ class MemoryManager:
         print(f"=== RP2040 Memory Info ===")
         print(f"Initial free: {self.initial_free:,} bytes")
         print(f"Total RAM: ~256KB")
+        
+        # CircuitPython specific info
+        try:
+            import sys
+            print(f"CircuitPython version: {sys.version}")
+        except:
+            pass
     
     def check(self, label="", critical_threshold=20000):
-        """Check memory with warnings"""
+        """Check memory with warnings - optimized for CircuitPython"""
         free = gc.mem_free()
         used = self.initial_free - free
         self.peak_usage = max(self.peak_usage, used)
@@ -52,7 +86,7 @@ class MemoryManager:
         return free
     
     def cleanup(self):
-        """Aggressive cleanup"""
+        """Aggressive cleanup for CircuitPython"""
         before = gc.mem_free()
         gc.collect()
         after = gc.mem_free()
@@ -64,6 +98,15 @@ class MemoryManager:
     def report_peak(self):
         """Report peak memory usage"""
         print(f"Peak memory usage: {self.peak_usage:,} bytes")
+        print(f"Memory efficiency: {self.peak_usage/self.initial_free*100:.1f}%")
+        
+        # CircuitPython recommendations
+        if self.peak_usage > 200000:  # >200KB
+            print("⚠️  High memory usage - consider smaller models")
+        elif self.peak_usage > 150000:  # >150KB
+            print("⚠️  Moderate memory usage - test carefully")
+        else:
+            print("✅ Memory usage looks good for RP2040")
 
 mem = MemoryManager()
 
@@ -204,6 +247,12 @@ class ScalableTransformer:
     def _load_model(self, model_file):
         """Load model from binary file"""
         print(f"Loading model: {model_file}")
+        
+        # Aggressive memory cleanup before loading
+        print("Preparing memory...")
+        for _ in range(3):
+            gc.collect()
+        
         mem.check("Before model load")
         
         try:
@@ -246,77 +295,114 @@ class ScalableTransformer:
                 if memory_needed > current_free:
                     print(f"  ⚠️  WARNING: Need {memory_needed:,}B but only {current_free:,}B free!")
                     print("  Model may not fit in memory!")
+                    
+                    # Check if we have enough for chunked loading (need ~25% overhead)
+                    overhead_needed = memory_needed * 1.25
+                    if overhead_needed > current_free:
+                        print(f"  ❌ Even with chunked loading, need ~{overhead_needed:,}B")
+                        print(f"  Consider using a smaller model (< {current_free//5000}K parameters)")
+                        return False
+                    else:
+                        print(f"  ✅ Will try chunked loading to reduce peak memory usage")
                 
-                # Load token embeddings
+                # Additional memory fragmentation check
+                if current_free < 50000:  # Less than 50KB free
+                    print(f"  ⚠️  Low memory warning: Only {current_free:,}B free")
+                    print("  Memory fragmentation may cause allocation failures")
+                
+                # Load token embeddings with chunked reading to avoid large allocations
                 embed_size = self.vocab_size * self.dim
-                embed_bytes = f.read(embed_size * 4)
+                print(f"Loading embeddings in chunks to avoid large allocation...")
                 
-                if len(embed_bytes) != embed_size * 4:
-                    print(f"Expected {embed_size * 4} embedding bytes, got {len(embed_bytes)}")
-                    return False
-                
-                # Convert to nested lists
-                embed_floats = struct.unpack(f'{embed_size}f', embed_bytes)
+                # Read embeddings row by row to avoid large memory allocation
                 self.token_embedding = []
+                bytes_per_row = self.dim * 4  # 4 bytes per float
+                
                 for i in range(self.vocab_size):
-                    row = []
-                    for j in range(self.dim):
-                        row.append(embed_floats[i * self.dim + j])
+                    if i % 10 == 0:  # Progress indicator
+                        gc.collect()  # Collect garbage every 10 rows
+                    
+                    row_bytes = f.read(bytes_per_row)
+                    if len(row_bytes) != bytes_per_row:
+                        print(f"Expected {bytes_per_row} bytes for row {i}, got {len(row_bytes)}")
+                        return False
+                    
+                    # Unpack row and convert to list
+                    row_floats = struct.unpack(f'{self.dim}f', row_bytes)
+                    row = list(row_floats)  # Convert tuple to list
                     self.token_embedding.append(row)
                 
                 mem.cleanup()
                 mem.check("After embeddings")
                 
-                # Load layers
+                # Load layers with memory optimization
                 self.layers = []
                 for layer_id in range(self.n_layers):
                     print(f"  Loading layer {layer_id + 1}/{self.n_layers}")
+                    gc.collect()  # Clean up before each layer
                     
                     layer = {}
                     
-                    # Layer norms
+                    # Layer norms (small, load normally)
                     ln1_bytes = f.read(self.dim * 4)
                     ln2_bytes = f.read(self.dim * 4)
                     layer['ln1_weight'] = list(struct.unpack(f'{self.dim}f', ln1_bytes))
                     layer['ln2_weight'] = list(struct.unpack(f'{self.dim}f', ln2_bytes))
                     
-                    # Attention weights
+                    # Attention weights - load row by row to avoid large allocations
                     attn_size = self.dim * self.dim
                     for weight_name in ['wq', 'wk', 'wv', 'wo']:
-                        weight_bytes = f.read(attn_size * 4)
-                        weight_floats = struct.unpack(f'{attn_size}f', weight_bytes)
-                        # Convert to 2D matrix
+                        print(f"    Loading {weight_name}...")
                         matrix = []
+                        bytes_per_row = self.dim * 4
+                        
                         for i in range(self.dim):
-                            row = []
-                            for j in range(self.dim):
-                                row.append(weight_floats[i * self.dim + j])
-                            matrix.append(row)
+                            if i % 5 == 0:  # More frequent GC for attention matrices
+                                gc.collect()
+                            
+                            row_bytes = f.read(bytes_per_row)
+                            if len(row_bytes) != bytes_per_row:
+                                print(f"Error reading {weight_name} row {i}")
+                                return False
+                            
+                            row_floats = struct.unpack(f'{self.dim}f', row_bytes)
+                            matrix.append(list(row_floats))
+                        
                         layer[weight_name] = matrix
                     
-                    # FFN weights
+                    # FFN weights - load row by row to avoid large allocations
+                    print(f"    Loading w1...")
                     # W1: dim x hidden_dim
-                    w1_size = self.dim * self.hidden_dim
-                    w1_bytes = f.read(w1_size * 4)
-                    w1_floats = struct.unpack(f'{w1_size}f', w1_bytes)
                     w1_matrix = []
+                    w1_bytes_per_row = self.hidden_dim * 4
                     for i in range(self.dim):
-                        row = []
-                        for j in range(self.hidden_dim):
-                            row.append(w1_floats[i * self.hidden_dim + j])
-                        w1_matrix.append(row)
+                        if i % 3 == 0:
+                            gc.collect()
+                        
+                        row_bytes = f.read(w1_bytes_per_row)
+                        if len(row_bytes) != w1_bytes_per_row:
+                            print(f"Error reading w1 row {i}")
+                            return False
+                        
+                        row_floats = struct.unpack(f'{self.hidden_dim}f', row_bytes)
+                        w1_matrix.append(list(row_floats))
                     layer['w1'] = w1_matrix
                     
+                    print(f"    Loading w2...")
                     # W2: hidden_dim x dim  
-                    w2_size = self.hidden_dim * self.dim
-                    w2_bytes = f.read(w2_size * 4)
-                    w2_floats = struct.unpack(f'{w2_size}f', w2_bytes)
                     w2_matrix = []
+                    w2_bytes_per_row = self.dim * 4
                     for i in range(self.hidden_dim):
-                        row = []
-                        for j in range(self.dim):
-                            row.append(w2_floats[i * self.dim + j])
-                        w2_matrix.append(row)
+                        if i % 3 == 0:
+                            gc.collect()
+                        
+                        row_bytes = f.read(w2_bytes_per_row)
+                        if len(row_bytes) != w2_bytes_per_row:
+                            print(f"Error reading w2 row {i}")
+                            return False
+                        
+                        row_floats = struct.unpack(f'{self.dim}f', row_bytes)
+                        w2_matrix.append(list(row_floats))
                     layer['w2'] = w2_matrix
                     
                     self.layers.append(layer)
@@ -510,39 +596,228 @@ class ModelDetector:
     
     def detect_models(self):
         """Find all available model files"""
-        model_files = []
+        print("=== Detecting Available Models ===")
         
-        # Try different naming patterns
-        size_names = ['tiny', 'small', 'medium', 'large', 'xlarge']
+        # First try new folder structure
+        self._detect_folder_models()
         
-        for size in size_names:
-            model_file = f"model_{size}.bin"
-            vocab_file = f"vocab_{size}.bin"
-            
-            try:
-                # Check if both files exist
-                with open(model_file, 'rb') as f:
-                    f.read(4)  # Try to read header
-                with open(vocab_file, 'rb') as f:
-                    f.read(2)  # Try to read vocab size
-                
-                self.available_models.append({
-                    'name': size,
-                    'model_file': model_file,
-                    'vocab_file': vocab_file
-                })
-                print(f"✅ Found {size} model: {model_file}")
-                
-            except:
-                continue
+        # Then try legacy file structure
+        self._detect_legacy_models()
         
         if not self.available_models:
             print("❌ No model files found!")
-            print("Expected files: model_[size].bin and vocab_[size].bin")
+            print(f"Expected either:")
+            print(f"  New structure: {MODELS_DIR}/[model-name]/model_[params]p.bin")
+            print(f"  Legacy structure: model_[name].bin and vocab_[name].bin")
+        else:
+            print(f"✅ Found {len(self.available_models)} models")
+    
+    def _detect_folder_models(self):
+        """Automatically detect models in the models folder"""
+        # Check if models directory exists by trying to list it
+        try:
+            items = os.listdir(MODELS_DIR)
+        except OSError:
+            print(f"Models directory '{MODELS_DIR}' not found")
+            return
+        
+        print(f"Scanning {MODELS_DIR}/ directory for model folders...")
+        
+        try:
+            # Get all items in models directory
+            for item in items:
+                # In CircuitPython, we need to check if it's a directory differently
+                # Try to list the contents to see if it's a directory
+                try:
+                    folder_path = f"{MODELS_DIR}/{item}"
+                    files = os.listdir(folder_path)
+                    
+                    # If we can list files, it's a directory
+                    print(f"  Checking folder: {item}")
+                    
+                    # Look for model files in this folder
+                    model_files = [f for f in files if f.startswith("model_") and f.endswith(".bin")]
+                    
+                    if model_files:
+                        # Extract parameter count from filename
+                        model_file = model_files[0]  # Should be only one
+                        param_str = model_file[6:-4]  # Remove "model_" prefix and ".bin" suffix
+                        
+                        if param_str.endswith('p'):
+                            try:
+                                param_count = int(param_str[:-1])
+                                
+                                # Check if all required files exist by trying to open them
+                                vocab_file = f"vocab_{param_count}p.bin"
+                                config_file = f"config_{param_count}p.json"
+                                
+                                vocab_exists = False
+                                config_exists = False
+                                
+                                # Check if vocab file exists
+                                try:
+                                    with open(f"{folder_path}/{vocab_file}", 'rb') as f:
+                                        f.read(2)  # Try to read vocab size
+                                    vocab_exists = True
+                                except:
+                                    pass
+                                
+                                # Check if config file exists
+                                try:
+                                    with open(f"{folder_path}/{config_file}", 'r') as f:
+                                        f.read(1)  # Try to read first character
+                                    config_exists = True
+                                except:
+                                    pass
+                                
+                                if vocab_exists and config_exists:
+                                    # Generate description based on folder name and params
+                                    description = self._generate_description(item, param_count)
+                                    
+                                    self.available_models.append({
+                                        'name': item,
+                                        'folder': item,
+                                        'model_file': f"{folder_path}/{model_file}",
+                                        'vocab_file': f"{folder_path}/{vocab_file}",
+                                        'config_file': f"{folder_path}/{config_file}",
+                                        'params': param_count,
+                                        'description': description,
+                                        'type': 'folder'
+                                    })
+                                    
+                                    print(f"    ✅ Found model: {param_count:,} params - {description}")
+                                else:
+                                    missing = []
+                                    if not vocab_exists:
+                                        missing.append(vocab_file)
+                                    if not config_exists:
+                                        missing.append(config_file)
+                                    print(f"    ⚠️  Missing files: {', '.join(missing)}")
+                                    
+                            except ValueError:
+                                print(f"    ⚠️  Could not parse params from {model_file}")
+                                continue
+                        else:
+                            print(f"    ⚠️  Model file doesn't match pattern: {model_file}")
+                    else:
+                        print(f"    ⚠️  No model files found")
+                
+                except OSError:
+                    # This item is not a directory, skip it
+                    print(f"  Skipping non-directory: {item}")
+                except Exception as e:
+                    print(f"    ⚠️  Error checking {item}: {e}")
+                    continue
+        
+        except Exception as e:
+            print(f"Error scanning {MODELS_DIR}: {e}")
+    
+    def _generate_description(self, folder_name, param_count):
+        """Generate a human-readable description for a model"""
+        # Try to extract meaningful info from folder name
+        if '-' in folder_name:
+            parts = folder_name.split('-')
+            if len(parts) >= 2:
+                try:
+                    size_part = parts[1]
+                    if size_part.endswith('k') or size_part.endswith('K'):
+                        size_num = int(size_part[:-1])
+                        if size_num <= 5:
+                            return f"Small {size_num}K parameter model"
+                        elif size_num <= 20:
+                            return f"Medium {size_num}K parameter model"
+                        else:
+                            return f"Large {size_num}K parameter model"
+                except:
+                    pass
+        
+        # Fallback description
+        if param_count < 5000:
+            return f"Small model ({param_count:,} params)"
+        elif param_count < 20000:
+            return f"Medium model ({param_count:,} params)"
+        else:
+            return f"Large model ({param_count:,} params)"
+    
+    def _detect_legacy_models(self):
+        """Detect models using legacy file structure"""
+        print("Checking for legacy model files...")
+        
+        # Common legacy model names to check
+        legacy_names = ['tiny', 'small', 'medium', 'large', 'xlarge', 'custom']
+        
+        for model_name in legacy_names:
+            model_file = LEGACY_MODEL_PATTERN.format(name=model_name)
+            vocab_file = LEGACY_VOCAB_PATTERN.format(name=model_name)
+            
+            try:
+                # Check if both files exist by trying to open them
+                model_exists = False
+                vocab_exists = False
+                
+                # Try to open model file
+                try:
+                    with open(model_file, 'rb') as f:
+                        header = f.read(32)
+                        if len(header) >= 32:
+                            model_exists = True
+                except:
+                    pass
+                
+                # Try to open vocab file
+                try:
+                    with open(vocab_file, 'rb') as f:
+                        f.read(2)  # Try to read vocab size
+                    vocab_exists = True
+                except:
+                    pass
+                
+                if model_exists and vocab_exists:
+                    # Extract parameter count from header
+                    try:
+                        with open(model_file, 'rb') as f:
+                            header = f.read(32)
+                            if len(header) >= 32:
+                                # Extract parameter count from header
+                                config_values = struct.unpack("8I", header)
+                                vocab_size = config_values[0]
+                                dim = config_values[1]
+                                hidden_dim = config_values[2]
+                                n_layers = config_values[3]
+                                
+                                # Calculate approximate parameter count
+                                embed_params = vocab_size * dim
+                                layer_params = n_layers * (4 * dim * dim + dim * hidden_dim * 2)
+                                total_params = embed_params + layer_params
+                                
+                                self.available_models.append({
+                                    'name': model_name,
+                                    'folder': None,
+                                    'model_file': model_file,
+                                    'vocab_file': vocab_file,
+                                    'config_file': None,
+                                    'params': total_params,
+                                    'description': f"Legacy {model_name} model (~{total_params//1000}K params)",
+                                    'type': 'legacy'
+                                })
+                                
+                                print(f"✅ Found legacy {model_name} (~{total_params//1000}K params)")
+                    except Exception as e:
+                        print(f"⚠️  Error reading {model_file}: {e}")
+                        continue
+                
+            except Exception as e:
+                continue
+        
+        if not any(m['type'] == 'legacy' for m in self.available_models):
+            print("No legacy models found")
     
     def test_model_loading(self, model_info):
         """Test if a model can be loaded"""
         print(f"\n=== Testing {model_info['name'].upper()} Model ===")
+        print(f"Description: {model_info['description']}")
+        print(f"Parameters: {model_info['params']:,}")
+        print(f"Type: {model_info['type']}")
         
         try:
             # Check memory before loading
@@ -588,6 +863,81 @@ class ModelDetector:
             print(f"❌ Failed to load {model_info['name']}: {e}")
             return {'success': False, 'error': str(e)}
 
+    def test_single_model(self, model_name):
+        """Test a single specific model - useful for CircuitPython development"""
+        print(f"\n=== Testing Single Model: {model_name} ===")
+        
+        # Find the model
+        model_info = None
+        for info in self.available_models:
+            if info['name'] == model_name:
+                model_info = info
+                break
+        
+        if not model_info:
+            print(f"❌ Model '{model_name}' not found!")
+            print(f"Available models: {[m['name'] for m in self.available_models]}")
+            return False
+        
+        print(f"Found model: {model_info['description']}")
+        print(f"Parameters: {model_info['params']:,}")
+        print(f"Type: {model_info['type']}")
+        
+        # Test loading
+        result = self.test_model_loading(model_info)
+        
+        if result['success']:
+            print(f"\n✅ {model_name} model test successful!")
+            print(f"Memory used: {result['memory_used']:,} bytes")
+            print(f"Inference speed: {1.0/result['inference_time']:.1f} tokens/sec")
+            
+            # Quick generation test
+            try:
+                print(f"\n--- Quick Generation Test ---")
+                test_prompt = "hello"
+                generated = self._quick_generate(result['model'], result['tokenizer'], test_prompt, max_tokens=5)
+                print(f"Prompt: '{test_prompt}'")
+                print(f"Generated: '{generated}'")
+            except Exception as e:
+                print(f"Generation test failed: {e}")
+            
+            # Clean up
+            del result['model']
+            del result['tokenizer']
+            mem.cleanup()
+            
+            return True
+        else:
+            print(f"❌ {model_name} model test failed: {result.get('error', 'Unknown error')}")
+            return False
+    
+    def _quick_generate(self, model, tokenizer, prompt, max_tokens=5):
+        """Quick text generation for testing"""
+        tokens = tokenizer.encode(prompt)
+        generated_tokens = []
+        
+        for step in range(max_tokens):
+            current_tokens = tokens + generated_tokens
+            
+            # Truncate if too long
+            if len(current_tokens) > model.max_seq_len - 1:
+                current_tokens = current_tokens[-(model.max_seq_len - 1):]
+            
+            # Forward pass
+            logits = model.forward(current_tokens)
+            
+            # Sample
+            next_token = model.sample(logits, temperature=0.8)
+            
+            if next_token == 2:  # EOS
+                break
+            
+            generated_tokens.append(next_token)
+        
+        # Decode result
+        full_tokens = tokens + generated_tokens
+        return tokenizer.decode(full_tokens)
+
 class ScalableInference:
     """Main inference engine that handles multiple model sizes"""
     
@@ -623,16 +973,29 @@ class ScalableInference:
         
         # Print summary
         print(f"\n=== BENCHMARK RESULTS ===")
-        print(f"{'Model':8s} {'Status':8s} {'Memory':8s} {'Speed':12s}")
-        print("-" * 45)
+        print(f"{'Model':15s} {'Type':8s} {'Params':8s} {'Status':8s} {'Memory':8s} {'Speed':12s}")
+        print("-" * 70)
         
         for name, result in results.items():
             if result['success']:
                 memory_kb = result['memory_used'] // 1024
                 speed = 1.0 / result['inference_time']
-                print(f"{name:8s} ✅      {memory_kb:5d}KB {speed:8.1f} tok/s")
+                
+                # Find model info for additional details
+                model_info = None
+                for info in self.detector.available_models:
+                    if info['name'] == name:
+                        model_info = info
+                        break
+                
+                if model_info:
+                    param_str = f"{model_info['params']//1000}K" if model_info['params'] >= 1000 else str(model_info['params'])
+                    model_type = model_info['type'][:7]  # Truncate to fit column
+                    print(f"{name:15s} {model_type:8s} {param_str:8s} ✅      {memory_kb:5d}KB {speed:8.1f} tok/s")
+                else:
+                    print(f"{name:15s} {'unknown':8s} {'unknown':8s} ✅      {memory_kb:5d}KB {speed:8.1f} tok/s")
             else:
-                print(f"{name:8s} ❌      Failed    -")
+                print(f"{name:15s} {'unknown':8s} {'unknown':8s} ❌      Failed    -")
         
         return results
     
@@ -668,6 +1031,10 @@ class ScalableInference:
             
         except Exception as e:
             print(f"❌ Failed to load {model_name}: {e}")
+            # Ensure current_model state is clean after failure
+            self.current_model = None
+            self.current_tokenizer = None
+            self.current_model_name = None
             return False
     
     def generate(self, prompt="hello", max_tokens=10, temperature=0.8):
@@ -753,30 +1120,208 @@ class ScalableInference:
                 
                 # Pause between models
                 time.sleep(1)
+            else:
+                print(f"\n--- Skipping {model_info['name'].upper()} model (failed to load) ---")
+    
+    def list_available_models(self):
+        """List all available models with details"""
+        print(f"\n=== Available Models ===")
+        
+        if not self.detector.available_models:
+            print("No models found!")
+            return
+        
+        # Group by type
+        folder_models = [m for m in self.detector.available_models if m['type'] == 'folder']
+        legacy_models = [m for m in self.detector.available_models if m['type'] == 'legacy']
+        
+        if folder_models:
+            print(f"\n📁 Folder-based models ({len(folder_models)}):")
+            print(f"{'Name':15s} {'Folder':20s} {'Params':8s} {'Description':40s}")
+            print("-" * 85)
+            for model in sorted(folder_models, key=lambda x: x['params']):
+                param_str = f"{model['params']//1000}K" if model['params'] >= 1000 else str(model['params'])
+                desc = model['description'][:37] + "..." if len(model['description']) > 40 else model['description']
+                print(f"{model['name']:15s} {model['folder']:20s} {param_str:8s} {desc:40s}")
+        
+        if legacy_models:
+            print(f"\n📄 Legacy models ({len(legacy_models)}):")
+            print(f"{'Name':15s} {'Params':8s} {'Description':40s}")
+            print("-" * 65)
+            for model in sorted(legacy_models, key=lambda x: x['params']):
+                param_str = f"{model['params']//1000}K" if model['params'] >= 1000 else str(model['params'])
+                desc = model['description'][:37] + "..." if len(model['description']) > 40 else model['description']
+                print(f"{model['name']:15s} {param_str:8s} {desc:40s}")
+        
+        # Show total counts
+        total_params = sum(m['params'] for m in self.detector.available_models)
+        print(f"\n📊 Summary:")
+        print(f"  Total models: {len(self.detector.available_models)}")
+        print(f"  Total parameters: {total_params:,} ({total_params/1000:.1f}K)")
+        
+        # RP2040 recommendations
+        working_models = [m for m in self.detector.available_models if m['params'] <= 15000]
+        risky_models = [m for m in self.detector.available_models if 15000 < m['params'] <= 30000]
+        large_models = [m for m in self.detector.available_models if m['params'] > 30000]
+        
+        print(f"\n🎯 RP2040 Recommendations:")
+        if working_models:
+            largest_working = max(working_models, key=lambda x: x['params'])
+            print(f"  ✅ Likely to work: {len(working_models)} models (up to {largest_working['params']:,} params)")
+        
+        if risky_models:
+            print(f"  ⚠️  Test carefully: {len(risky_models)} models ({min(m['params'] for m in risky_models):,} - {max(m['params'] for m in risky_models):,} params)")
+        
+        if large_models:
+            print(f"  ❌ Unlikely to work: {len(large_models)} models ({min(m['params'] for m in large_models):,} - {max(m['params'] for m in large_models):,} params)")
+    
+    def show_configuration(self):
+        """Show current configuration"""
+        print(f"\n=== Configuration ===")
+        print(f"Models directory: {MODELS_DIR}")
+        print(f"Detection mode: Automatic folder scanning")
+        print(f"File patterns:")
+        print(f"  Model: {MODEL_FILE_PATTERN}")
+        print(f"  Vocab: {VOCAB_FILE_PATTERN}")
+        print(f"  Config: {CONFIG_FILE_PATTERN}")
+        print(f"  Legacy model: {LEGACY_MODEL_PATTERN}")
+        print(f"  Legacy vocab: {LEGACY_VOCAB_PATTERN}")
+        print(f"\nCircuitPython features:")
+        print(f"  - Automatic model detection")
+        print(f"  - No pre-configuration needed")
+        print(f"  - Just add model folders to {MODELS_DIR}/")
+        print(f"  - Supports both folder and legacy structures")
+        print(f"  - CircuitPython 3.4.0+ compatible")
 
 def main():
-    """Main function"""
+    """Main function with CircuitPython-friendly interface"""
     try:
+        print("=== CircuitPython RP2040 Transformer Inference ===")
+        print(f"RP2040: {microcontroller.cpu.frequency//1000000}MHz")
+        
+        # Test CircuitPython compatibility
+        print("\n=== Testing CircuitPython Compatibility ===")
+        try:
+            # Test basic file operations
+            test_dir = "test_scan"
+            try:
+                os.listdir(test_dir)
+                print("✅ Directory listing works")
+            except OSError:
+                print("✅ Directory listing error handling works")
+            
+            # Test file operations
+            try:
+                with open("test_file.tmp", "w") as f:
+                    f.write("test")
+                with open("test_file.tmp", "r") as f:
+                    content = f.read()
+                if content == "test":
+                    print("✅ File read/write works")
+                # Clean up
+                try:
+                    os.remove("test_file.tmp")
+                except:
+                    pass
+            except Exception as e:
+                print(f"⚠️  File operations test: {e}")
+            
+            print("CircuitPython compatibility test complete")
+            
+        except Exception as e:
+            print(f"⚠️  Compatibility test failed: {e}")
+        
         # Create inference engine
         inference = ScalableInference()
         
-        # Benchmark all models
-        results = inference.benchmark_all_models()
+        # Show configuration
+        inference.show_configuration()
         
-        # Find largest working model
-        working_models = [name for name, result in results.items() if result['success']]
+        # List available models
+        inference.list_available_models()
         
-        if working_models:
-            print(f"\n✅ Working models: {', '.join(working_models)}")
+        if not inference.detector.available_models:
+            print("❌ No models found! Please add model folders to the models/ directory.")
+            return
+        
+        # Simple CircuitPython interface
+        print(f"\n=== CircuitPython Interface ===")
+        print("Options:")
+        print("  1. Test all models (benchmark)")
+        print("  2. Test single model")
+        print("  3. Interactive demo")
+        print("  4. Exit")
+        
+        try:
+            choice = input("\nEnter choice (1-4): ").strip()
             
-            # Demo with largest working model
-            largest_model = working_models[-1]  # Assume ordered by size
-            print(f"\n=== DEMO WITH {largest_model.upper()} MODEL ===")
+            if choice == "1":
+                # Benchmark all models
+                results = inference.benchmark_all_models()
+                
+                # Find largest working model
+                working_models = [name for name, result in results.items() if result['success']]
+                
+                if working_models:
+                    print(f"\n✅ Working models: {', '.join(working_models)}")
+                    
+                    # Demo with largest working model
+                    largest_model = working_models[-1]
+                    print(f"\n=== DEMO WITH {largest_model.upper()} MODEL ===")
+                    
+                    if inference.load_model(largest_model):
+                        inference.interactive_demo()
+                else:
+                    print("❌ No models could be loaded!")
             
-            if inference.load_model(largest_model):
-                inference.interactive_demo()
-        else:
-            print("❌ No models could be loaded!")
+            elif choice == "2":
+                # Test single model
+                print(f"\nAvailable models: {[m['name'] for m in inference.detector.available_models]}")
+                model_name = input("Enter model name: ").strip()
+                
+                if model_name:
+                    inference.detector.test_single_model(model_name)
+                else:
+                    print("No model name provided")
+            
+            elif choice == "3":
+                # Interactive demo
+                print(f"\nAvailable models: {[m['name'] for m in inference.detector.available_models]}")
+                model_name = input("Enter model name for demo: ").strip()
+                
+                if model_name and inference.load_model(model_name):
+                    inference.interactive_demo()
+                else:
+                    print("Invalid model name or failed to load")
+            
+            elif choice == "4":
+                print("Exiting...")
+                return
+            
+            else:
+                print("Invalid choice, running full benchmark...")
+                # Fall back to full benchmark
+                results = inference.benchmark_all_models()
+        
+        except EOFError:
+            # CircuitPython REPL - run full benchmark automatically
+            print("\nRunning full benchmark (CircuitPython REPL mode)...")
+            results = inference.benchmark_all_models()
+            
+            # Find largest working model
+            working_models = [name for name, result in results.items() if result['success']]
+            
+            if working_models:
+                print(f"\n✅ Working models: {', '.join(working_models)}")
+                
+                # Demo with largest working model
+                largest_model = working_models[-1]
+                print(f"\n=== DEMO WITH {largest_model.upper()} MODEL ===")
+                
+                if inference.load_model(largest_model):
+                    inference.interactive_demo()
+            else:
+                print("❌ No models could be loaded!")
         
     except Exception as e:
         print(f"Error: {e}")
@@ -786,6 +1331,7 @@ def main():
     finally:
         mem.report_peak()
         mem.check("Final memory")
+        print("\n=== CircuitPython Inference Complete ===")
 
 if __name__ == "__main__":
     main()

@@ -1,23 +1,6 @@
 """
-Scalable Transformer Training Script for RP2040
-Optimized with findings from comprehensive architectural studies
-
-🚀 NEW: OPTIMIZED RP2040 ARCHITECTURES (Based on log.md findings):
-- rp2040-optimized (15-20K): vocab=512, dim=8, layers=3, heads=8, hidden=256 (32x FFN)
-- rp2040-speed (8-12K):     vocab=256, dim=6, layers=2, heads=4, hidden=192 (32x FFN)  
-- rp2040-quality (25-35K):  vocab=1024, dim=12, layers=4, heads=12, hidden=384 (32x FFN)
-
-📚 Dataset Integration:
-- Now loads from dataset/TinyStories-train.txt (1.8GB real training data)
-- Falls back to hardcoded data if dataset unavailable
-- Batch training for efficiency with large datasets
-
-🎯 Key Optimizations:
-- Ultra-narrow dimensions (6-12d) for maximum speed
-- Large vocabulary (256-1024 tokens) for quality text generation
-- Balanced layers (2-4) for depth without speed penalty
-- Optimal attention heads (4-12) for good attention mechanism
-- 32x FFN ratios for computational power
+Scalable Transformer Training Script
+Test different model sizes to find RP2040 limits
 
 Model Size Presets (actual parameter counts):
 - story-1k (1.3K):    vocab=64,  dim=8,   layers=1, heads=2  
@@ -42,39 +25,9 @@ import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import psutil
 from tqdm import tqdm
-import argparse
 
 # Model size presets - names reflect actual parameter counts
 MODEL_CONFIGS = {
-    # === OPTIMIZED ARCHITECTURE FOR RP2040 (Based on log.md findings) ===
-    'rp2040-optimized': {
-        'vocab_size': 512,          # Large enough for real text, minimal speed impact
-        'dim': 8,                   # Sweet spot: good capacity, acceptable speed
-        'hidden_dim': 256,          # 32x FFN ratio (moderate speed impact)
-        'n_layers': 3,              # 3 layers: good depth, manageable speed loss
-        'n_heads': 8,               # 8 heads: good attention, moderate speed impact
-        'max_seq_len': 64,          # Longer sequences for serious text
-        'description': 'OPTIMIZED: 15-20K parameters - Production-ready RP2040 model'
-    },
-    'rp2040-speed': {
-        'vocab_size': 256,          # Smaller vocab for speed
-        'dim': 6,                   # Narrower for speed
-        'hidden_dim': 192,          # 32x FFN ratio
-        'n_layers': 2,              # 2 layers for speed
-        'n_heads': 4,               # 4 heads for speed
-        'max_seq_len': 48,          # Shorter sequences
-        'description': 'SPEED: 8-12K parameters - Fast RP2040 model'
-    },
-    'rp2040-quality': {
-        'vocab_size': 1024,         # Large vocab for quality
-        'dim': 12,                  # Wider for quality
-        'hidden_dim': 384,          # 32x FFN ratio
-        'n_layers': 4,              # 4 layers for quality
-        'n_heads': 12,              # 12 heads for quality
-        'max_seq_len': 96,          # Longer sequences
-        'description': 'QUALITY: 25-35K parameters - High-quality RP2040 model'
-    },
-    
     # === 1K Parameter Architectural Variants (Speed Comparison Study) ===
     'story-1k-wide': {
         'vocab_size': 96,
@@ -3029,99 +2982,19 @@ class ScalableTransformer:
 class ScalableTrainer:
     """Trainer for different model sizes"""
     
-    def __init__(self, model_size='tiny', quick_mode=False, max_examples=10000, dataset_percent=None):
+    def __init__(self, model_size='tiny'):
         self.config = MODEL_CONFIGS[model_size]
         self.model_size = model_size
-        self.quick_mode = quick_mode
-        self.max_examples = max_examples
-        self.dataset_percent = dataset_percent
         
         print(f"=== Training {model_size.upper()} model ===")
         print(f"Config: {self.config}")
-        if quick_mode:
-            print("🚀 QUICK MODE: Using limited training data for fast testing!")
-        if dataset_percent:
-            print(f"📊 DATASET MODE: Using {dataset_percent}% of available dataset!")
-            # Estimate training time based on dataset percentage
-            if dataset_percent <= 25:
-                print(f"⏱️  Expected training time: 15-30 minutes for 2 epochs")
-            elif dataset_percent <= 50:
-                print(f"⏱️  Expected training time: 30-60 minutes for 2 epochs")
-            elif dataset_percent <= 75:
-                print(f"⏱️  Expected training time: 1-2 hours for 2 epochs")
-            else:
-                print(f"⏱️  Expected training time: 2-4 hours for 2 epochs")
         
         self.tokenizer = ScalableTokenizer(self.config['vocab_size'])
         self.model = ScalableTransformer(self.config)
         self.training_data = []
     
     def prepare_data(self):
-        """Prepare training data from TinyStories dataset"""
-        print("Loading training data from TinyStories dataset...")
-        
-        # Load data from the actual dataset file
-        dataset_path = "dataset/TinyStories-train.txt"
-        
-        if not os.path.exists(dataset_path):
-            print(f"❌ Dataset not found at {dataset_path}")
-            print("Falling back to hardcoded training data...")
-            self._load_hardcoded_data()
-            return
-        
-        try:
-            # Read the dataset file
-            with open(dataset_path, 'r', encoding='utf-8') as f:
-                dataset_content = f.read()
-            
-            # Split into sentences (simple approach - split on periods)
-            sentences = [s.strip() for s in dataset_content.split('.') if s.strip()]
-            
-            # Limit sentences based on trainer parameters
-            if self.dataset_percent:
-                # Use percentage of dataset
-                max_sentences = int(len(sentences) * self.dataset_percent / 100)
-                sentences = sentences[:max_sentences]
-                print(f"Using {self.dataset_percent}% of dataset: {max_sentences} sentences")
-            elif self.quick_mode:
-                # Quick mode: use only 1000 sentences
-                max_sentences = 1000
-                sentences = sentences[:max_sentences]
-                print(f"Quick mode: Using first {max_sentences} sentences from dataset")
-            else:
-                # Use max_examples limit
-                max_sentences = self.max_examples
-                if len(sentences) > max_sentences:
-                    sentences = sentences[:max_sentences]
-                    print(f"Using first {max_sentences} sentences from dataset")
-            
-            print(f"Loaded {len(sentences)} sentences from TinyStories dataset")
-            
-            # Create training examples
-            self.training_data = []
-            for sentence in sentences:
-                # Clean the sentence
-                sentence = sentence.strip()
-                if len(sentence) < 5:  # Skip very short sentences
-                    continue
-                
-                tokens = self.tokenizer.encode(sentence)
-                if len(tokens) > 1:
-                    for i in range(1, len(tokens)):
-                        context = tokens[:i]
-                        target = tokens[i]
-                        if len(context) <= self.config['max_seq_len']:
-                            self.training_data.append((context, target))
-            
-            print(f"Created {len(self.training_data)} training examples from dataset")
-            
-        except Exception as e:
-            print(f"❌ Error loading dataset: {e}")
-            print("Falling back to hardcoded training data...")
-            self._load_hardcoded_data()
-    
-    def _load_hardcoded_data(self):
-        """Fallback to hardcoded training data"""
+        """Prepare training data"""
         # Expanded training data for larger models
         sentences = [
             "hello world how are you today",
@@ -3167,13 +3040,11 @@ class ScalableTrainer:
                     if len(context) <= self.config['max_seq_len']:
                         self.training_data.append((context, target))
         
-        print(f"Created {len(self.training_data)} training examples from hardcoded data")
+        print(f"Created {len(self.training_data)} training examples")
     
-    def train(self, epochs=50, learning_rate=0.001, use_parallel=True):
-        """Train the model with optional parallel processing"""
+    def train(self, epochs=50, learning_rate=0.001):
+        """Train the model"""
         print(f"Training for {epochs} epochs with lr={learning_rate}")
-        if use_parallel:
-            print(f"🚀 Using parallel processing with {mp.cpu_count()} CPU cores!")
         
         losses = []
         best_loss = float('inf')
@@ -3185,53 +3056,15 @@ class ScalableTrainer:
         # Progress bar for epochs
         epoch_pbar = tqdm(range(epochs), desc="Training Epochs", unit="epoch")
         
-        # For large datasets, use batch training for efficiency
-        batch_size = min(100, len(self.training_data) // 10) if len(self.training_data) > 1000 else len(self.training_data)
-        
         for epoch in epoch_pbar:
             epoch_loss = 0
             random.shuffle(self.training_data)
             
-            if use_parallel and len(self.training_data) > 1000:
-                # Use parallel processing for large datasets
-                epoch_loss = self._train_epoch_parallel(epoch, epochs, batch_size, learning_rate)
-            else:
-                # Use sequential processing for smaller datasets
-                epoch_loss = self._train_epoch_sequential(epoch, epochs, batch_size, learning_rate)
+            # Progress bar for training samples within each epoch
+            sample_pbar = tqdm(self.training_data, desc=f"Epoch {epoch+1}/{epochs}", 
+                              unit="sample", leave=False)
             
-            avg_loss = epoch_loss / len(self.training_data)
-            losses.append(avg_loss)
-            
-            if avg_loss < best_loss:
-                best_loss = avg_loss
-            
-            # Update epoch progress bar with loss info
-            epoch_pbar.set_postfix({
-                'loss': f'{avg_loss:.4f}',
-                'best': f'{best_loss:.4f}'
-            })
-            
-            if epoch % 10 == 0 or epoch < 5:
-                self.test_generation()
-        
-        print(f"Training complete! Final loss: {losses[-1]:.4f}")
-        return losses
-    
-    def _train_epoch_sequential(self, epoch, total_epochs, batch_size, learning_rate):
-        """Train one epoch sequentially (original method)"""
-        epoch_loss = 0
-        
-        # Progress bar for training samples within each epoch
-        sample_pbar = tqdm(range(0, len(self.training_data), batch_size), 
-                          desc=f"Epoch {epoch+1}/{total_epochs}", 
-                          unit="batch", leave=False)
-        
-        for batch_start in sample_pbar:
-            batch_end = min(batch_start + batch_size, len(self.training_data))
-            batch_data = self.training_data[batch_start:batch_end]
-            
-            batch_loss = 0
-            for i, (context, target) in enumerate(batch_data):
+            for i, (context, target) in enumerate(sample_pbar):
                 try:
                     # Forward pass
                     logits = self.model.forward(np.array(context))
@@ -3254,94 +3087,30 @@ class ScalableTrainer:
                         if j != target and probs[j] > 0.01:  # Only update probable tokens
                             self.model.token_embedding[j] -= learning_rate * probs[j] * 0.01
                     
-                    batch_loss += loss
+                    # Update sample progress bar with loss
+                    sample_pbar.set_postfix({'loss': f'{loss:.4f}'})
                 
                 except Exception as e:
-                    print(f"Training error at epoch {epoch}, batch {batch_start//batch_size}, sample {i}: {e}")
+                    print(f"Training error at epoch {epoch}, sample {i}: {e}")
                     continue
             
-            # Update sample progress bar with batch loss
-            sample_pbar.set_postfix({'batch_loss': f'{batch_loss:.4f}'})
-        
-        return epoch_loss
-    
-    def _train_epoch_parallel(self, epoch, total_epochs, batch_size, learning_rate):
-        """Train one epoch using parallel processing with data parallelism"""
-        epoch_loss = 0
-        
-        # Split data into chunks for parallel processing
-        n_cores = mp.cpu_count()
-        chunk_size = len(self.training_data) // n_cores
-        chunks = []
-        
-        for i in range(n_cores):
-            start = i * chunk_size
-            end = start + chunk_size if i < n_cores - 1 else len(self.training_data)
-            chunks.append(self.training_data[start:end])
-        
-        # Progress bar for parallel chunks
-        chunk_pbar = tqdm(range(len(chunks)), 
-                         desc=f"Epoch {epoch+1}/{total_epochs} (Parallel)", 
-                         unit="chunk", leave=False)
-        
-        # Process chunks in parallel using ThreadPoolExecutor for shared memory access
-        from concurrent.futures import ThreadPoolExecutor
-        
-        with ThreadPoolExecutor(max_workers=n_cores) as executor:
-            # Submit chunk processing tasks
-            future_to_chunk = {
-                executor.submit(self._process_chunk_threaded, chunk, learning_rate): i 
-                for i, chunk in enumerate(chunks)
-            }
+            avg_loss = epoch_loss / len(self.training_data)
+            losses.append(avg_loss)
             
-            # Collect results as they complete
-            for future in as_completed(future_to_chunk):
-                chunk_idx = future_to_chunk[future]
-                try:
-                    chunk_loss = future.result()
-                    epoch_loss += chunk_loss
-                    
-                    # Update progress bar
-                    chunk_pbar.set_postfix({'chunk_loss': f'{chunk_loss:.4f}'})
-                    chunk_pbar.update(1)
-                    
-                except Exception as e:
-                    print(f"Error processing chunk {chunk_idx}: {e}")
-                    continue
+            if avg_loss < best_loss:
+                best_loss = avg_loss
+            
+            # Update epoch progress bar with loss info
+            epoch_pbar.set_postfix({
+                'loss': f'{avg_loss:.4f}',
+                'best': f'{best_loss:.4f}'
+            })
+            
+            if epoch % 10 == 0 or epoch < 5:
+                self.test_generation()
         
-        return epoch_loss
-    
-    def _process_chunk_threaded(self, chunk_data, learning_rate):
-        """Process a chunk of training data using threads (shared memory)"""
-        chunk_loss = 0
-        
-        for context, target in chunk_data:
-            try:
-                # Forward pass
-                logits = self.model.forward(np.array(context))
-                
-                # Compute loss
-                exp_logits = np.exp(logits - np.max(logits))
-                probs = exp_logits / (np.sum(exp_logits) + 1e-8)
-                loss = -np.log(probs[target] + 1e-8)
-                chunk_loss += loss
-                
-                # Update embeddings directly (threads share memory)
-                error = 1.0 - probs[target]
-                
-                # Update target token (increase)
-                if target < self.model.vocab_size:
-                    self.model.token_embedding[target] += learning_rate * error * 0.1
-                
-                # Update other tokens (decrease slightly)
-                for j in range(min(100, self.model.vocab_size)):  # Limit updates for speed
-                    if j != target and probs[j] > 0.01:  # Only update probable tokens
-                        self.model.token_embedding[j] -= learning_rate * probs[j] * 0.01
-                
-            except Exception as e:
-                continue
-        
-        return chunk_loss
+        print(f"Training complete! Final loss: {losses[-1]:.4f}")
+        return losses
     
     def test_generation(self):
         """Test generation during training"""
@@ -5338,66 +5107,14 @@ def test_quantization_hybrid():
 
 def main():
     """Main training function"""
-    # Parse command line arguments
-    parser = argparse.ArgumentParser(description='Scalable Transformer Training for RP2040')
-    parser.add_argument('--model', type=str, help='Model to train (e.g., rp2040-optimized)')
-    parser.add_argument('--parallel', action='store_true', help='Use parallel training with all CPU cores')
-    parser.add_argument('--epochs', type=int, default=100, help='Number of training epochs')
-    parser.add_argument('--lr', type=float, default=0.001, help='Learning rate')
-    parser.add_argument('--no-interactive', action='store_true', help='Run without interactive prompts')
-    parser.add_argument('--quick', action='store_true', help='Use only 1000 training examples for quick testing')
-    parser.add_argument('--max-examples', type=int, default=10000, help='Maximum training examples to use')
-    parser.add_argument('--dataset-percent', type=int, choices=range(5, 101, 5), 
-                       help='Use X%% of the dataset (5, 10, 15, ..., 95, 100)')
-    
-    args = parser.parse_args()
-    
     print("=== Scalable Transformer Training ===")
     print("Testing different model sizes for RP2040")
     print("All models will be saved in the 'models/' folder")
     
-    print("\n💻 COMMAND LINE USAGE:")
-    print("  python train.py --model rp2040-optimized --parallel --epochs 100")
-    print("  python train.py --model rp2040-speed --parallel --no-interactive")
-    print("  python train.py --model rp2040-quality --epochs 200 --lr 0.0005")
-    print("  python train.py --model rp2040-optimized --dataset-percent 25 --epochs 50")
-    print("  python train.py --model rp2040-speed --dataset-percent 50 --parallel --no-interactive")
-    
-    # If model is specified via command line, train it directly
-    if args.model:
-        if args.model in MODEL_CONFIGS:
-            print(f"🚀 Training {args.model.upper()} model via command line!")
-            trainer = ScalableTrainer(args.model, quick_mode=args.quick, max_examples=args.max_examples, dataset_percent=args.dataset_percent)
-            trainer.prepare_data()
-            trainer.train(epochs=args.epochs, learning_rate=args.lr, use_parallel=args.parallel)
-            trainer.save_model()
-            print(f"\n{args.model.upper()} model training complete!")
-            return
-        else:
-            print(f"❌ Model '{args.model}' not found in MODEL_CONFIGS")
-            print("Available models:", list(MODEL_CONFIGS.keys()))
-            return
-    
-    # If no-interactive mode, use default
-    if args.no_interactive:
-        print("🚀 Running in non-interactive mode with default optimized model!")
-        trainer = ScalableTrainer('rp2040-optimized', dataset_percent=args.dataset_percent)
-        trainer.prepare_data()
-        trainer.train(epochs=args.epochs, learning_rate=args.lr, use_parallel=args.parallel)
-        trainer.save_model()
-        print("\nRP2040 OPTIMIZED model training complete!")
-        return
-    
     # Ask which size to train
-    print("\n🚀 RECOMMENDED OPTIMIZED ARCHITECTURES (Based on log.md findings):")
-    print("  rp2040-optimized : OPTIMIZED: 15-20K parameters - Production-ready RP2040 model")
-    print("  rp2040-speed     : SPEED: 8-12K parameters - Fast RP2040 model")
-    print("  rp2040-quality   : QUALITY: 25-35K parameters - High-quality RP2040 model")
-    
-    print("\n📚 All Available Model Sizes:")
+    print("\nAvailable sizes:")
     for name, config in MODEL_CONFIGS.items():
-        if not name.startswith('rp2040-'):
-            print(f"  {name:15s}: {config['description']}")
+        print(f"  {name:15s}: {config['description']}")
     
     print("\nArchitectural Studies:")
     print("  1k_test  : Test all 1K architectural variants")
@@ -5427,16 +5144,6 @@ def main():
     print("  hybrid_test_parallel : Test HYBRID ULTRA-EXTREME STUDY with parallel processing")
     print("  all_parallel : Test ALL variants simultaneously with maximum parallel processing!")
     print("  Expected speedup: 4-8x faster on typical computers!")
-    
-    print("\n🚀 OPTIMIZED RP2040 TRAINING OPTIONS:")
-    print("  rp2040_optimized : Train production-ready optimized model (15-20K params)")
-    print("  rp2040_speed     : Train speed-optimized model (8-12K params)")
-    print("  rp2040_quality   : Train quality-optimized model (25-35K params)")
-    
-    print("\n🚀 PARALLEL TRAINING OPTIONS:")
-    print("  parallel_optimized : Train optimized model with ALL CPU cores")
-    print("  parallel_speed     : Train speed model with ALL CPU cores")
-    print("  parallel_quality   : Train quality model with ALL CPU cores")
     
     print("\nOther options:")
     print("  all      : Train all predefined sizes")
@@ -5550,71 +5257,21 @@ def main():
         find_models_by_params()
     elif choice == 'rp2040_quick':
         find_rp2040_models()
-    elif choice == 'rp2040_optimized':
-        print("🚀 Training OPTIMIZED RP2040 model (production-ready)!")
-        trainer = ScalableTrainer('rp2040-optimized')
-        trainer.prepare_data()
-        trainer.train(epochs=100, learning_rate=0.001)
-        trainer.save_model()
-        print("\nRP2040 OPTIMIZED model training complete!")
-    elif choice == 'rp2040_speed':
-        print("🚀 Training SPEED-OPTIMIZED RP2040 model!")
-        trainer = ScalableTrainer('rp2040-speed')
-        trainer.prepare_data()
-        trainer.train(epochs=100, learning_rate=0.001)
-        trainer.save_model()
-        print("\nRP2040 SPEED model training complete!")
-    elif choice == 'rp2040_quality':
-        print("🚀 Training QUALITY-OPTIMIZED RP2040 model!")
-        trainer = ScalableTrainer('rp2040-quality')
-        trainer.prepare_data()
-        trainer.train(epochs=100, learning_rate=0.001)
-        trainer.save_model()
-        print("\nRP2040 QUALITY model training complete!")
-    elif choice == 'parallel_optimized':
-        print("🚀 Training OPTIMIZED RP2040 model with ALL CPU cores!")
-        trainer = ScalableTrainer('rp2040-optimized')
-        trainer.prepare_data()
-        trainer.train(epochs=100, learning_rate=0.001, use_parallel=True)
-        trainer.save_model()
-        print("\nRP2040 OPTIMIZED model training complete with parallel processing!")
-    elif choice == 'parallel_speed':
-        print("🚀 Training SPEED-OPTIMIZED RP2040 model with ALL CPU cores!")
-        trainer = ScalableTrainer('rp2040-speed')
-        trainer.prepare_data()
-        trainer.train(epochs=100, learning_rate=0.001, use_parallel=True)
-        trainer.save_model()
-        print("\nRP2040 SPEED model training complete with parallel processing!")
-    elif choice == 'parallel_quality':
-        print("🚀 Training QUALITY-OPTIMIZED RP2040 model with ALL CPU cores!")
-        trainer = ScalableTrainer('rp2040-quality')
-        trainer.prepare_data()
-        trainer.train(epochs=100, learning_rate=0.001, use_parallel=True)
-        trainer.save_model()
-        print("\nRP2040 QUALITY model training complete with parallel processing!")
     elif choice in MODEL_CONFIGS:
         trainer = ScalableTrainer(choice)
         trainer.prepare_data()
         
-        # Special training parameters for optimized architectures
-        if choice.startswith('rp2040-'):
-            print(f"\n🚀 Training {choice.upper()} with OPTIMIZED parameters for RP2040!")
-            epochs = 100  # More epochs for serious training
-            learning_rate = 0.001  # Lower LR for stability
-        else:
-            # Train with size-appropriate epochs for other models
-            epochs = max(50, 200 // max(1, trainer.config['dim'] // 16))
-            learning_rate = 0.005
-        
-        trainer.train(epochs=epochs, learning_rate=learning_rate)
+        # Train with size-appropriate epochs
+        epochs = max(50, 200 // max(1, trainer.config['dim'] // 16))
+        trainer.train(epochs=epochs, learning_rate=0.005)
         
         trainer.save_model()
         print(f"\n{choice.upper()} model training complete!")
     else:
-        print("Invalid choice. Training OPTIMIZED RP2040 model as default.")
-        trainer = ScalableTrainer('rp2040-optimized')
+        print("Invalid choice. Training tiny model as default.")
+        trainer = ScalableTrainer('tiny')
         trainer.prepare_data()
-        trainer.train(epochs=100, learning_rate=0.001)
+        trainer.train(epochs=100, learning_rate=0.01)
         trainer.save_model()
 
 if __name__ == "__main__":

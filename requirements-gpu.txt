@@ -1,0 +1,16 @@
+# GPU Training Requirements for RP2040 Production Models
+# Install with: pip install -r requirements-gpu.txt
+
+# Core PyTorch (with CUDA support)
+torch>=2.0.0
+torchvision>=0.15.0
+torchaudio>=2.0.0
+
+# Additional PyTorch dependencies
+numpy>=1.21.0
+tqdm>=4.64.0
+
+# Optional: For better performance
+# Install these if you have them available:
+# nvidia-ml-py3  # For GPU monitoring
+# tensorboard    # For training visualization

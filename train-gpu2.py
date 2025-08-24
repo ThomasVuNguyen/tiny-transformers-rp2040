@@ -378,40 +378,41 @@ class GPUTrainer:
         
         gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1e9
         
-        # More aggressive batch sizes for higher GPU utilization
+        # ULTRA-AGGRESSIVE batch sizes for H100 (81GB VRAM)
+        # Current usage: 1.3GB (1.6%), Target: 60-70GB (75-85%)
         if self.config['dim'] <= 8:
-            if gpu_memory >= 80:  # H100 class
-                return 4096  # Increased from 2048 for higher utilization
+            if gpu_memory >= 80:  # H100 class - MASSIVE INCREASE
+                return 32768  # 8x increase for H100 utilization!
             elif gpu_memory >= 40:  # A100 class
-                return 2048  # Increased from 1024
+                return 8192   # 4x increase for A100
             elif gpu_memory >= 20:  # RTX 4090 class
-                return 1024  # Increased from 512
+                return 4096   # 4x increase
             elif gpu_memory >= 8:
-                return 512   # Increased from 256
+                return 2048   # 4x increase
             else:
-                return 256   # Increased from 128
+                return 1024   # 4x increase
         elif self.config['dim'] <= 12:
-            if gpu_memory >= 80:  # H100 class
-                return 2048  # Increased from 1024
+            if gpu_memory >= 80:  # H100 class - MASSIVE INCREASE
+                return 16384  # 8x increase for H100 utilization!
             elif gpu_memory >= 40:  # A100 class
-                return 1024  # Increased from 512
+                return 4096   # 4x increase for A100
             elif gpu_memory >= 20:  # RTX 4090 class
-                return 512   # Increased from 256
+                return 2048   # 4x increase
             elif gpu_memory >= 8:
-                return 256   # Increased from 128
+                return 1024   # 4x increase
             else:
-                return 128   # Increased from 64
+                return 512    # 4x increase
         else:
-            if gpu_memory >= 80:  # H100 class
-                return 1024  # Increased from 512
+            if gpu_memory >= 80:  # H100 class - MASSIVE INCREASE
+                return 8192   # 8x increase for H100 utilization!
             elif gpu_memory >= 40:  # A100 class
-                return 512   # Increased from 256
+                return 2048   # 4x increase for A100
             elif gpu_memory >= 20:  # RTX 4090 class
-                return 256   # Increased from 128
+                return 1024   # 4x increase
             elif gpu_memory >= 8:
-                return 128   # Increased from 64
+                return 512    # 4x increase
             else:
-                return 64    # Increased from 32
+                return 256    # 4x increase
     
     def _adjust_batch_size_for_memory(self) -> int:
         """Dynamically adjust batch size based on actual GPU memory usage"""
@@ -426,19 +427,33 @@ class GPUTrainer:
         
         logger.info(f"GPU Memory - Allocated: {allocated:.2f}GB, Reserved: {reserved:.2f}GB, Total: {total:.2f}GB")
         
-        # More aggressive: if using less than 85% of GPU memory, increase batch size
-        if allocated < total * 0.85:
-            new_batch_size = min(self.batch_size * 2, 8192)  # Increased cap for higher utilization
-            if new_batch_size != self.batch_size:
-                logger.info(f"Increasing batch size from {self.batch_size} to {new_batch_size} for better GPU utilization")
-                self.batch_size = new_batch_size
-        
-        # Also adjust gradient accumulation for better GPU utilization
-        if allocated < total * 0.75:
-            new_grad_steps = max(2, self.gradient_accumulation_steps // 2)
-            if new_grad_steps != self.gradient_accumulation_steps:
-                logger.info(f"Reducing gradient accumulation from {self.gradient_accumulation_steps} to {new_grad_steps} for better GPU utilization")
-                self.gradient_accumulation_steps = new_grad_steps
+        # ULTRA-AGGRESSIVE: H100 has 81GB, aim for 60-70GB usage (75-85%)
+        if total >= 80:  # H100 class
+            # For H100: if using less than 70% of GPU memory, MASSIVELY increase batch size
+            if allocated < total * 0.70:
+                new_batch_size = min(self.batch_size * 4, 65536)  # MASSIVE cap for H100
+                if new_batch_size != self.batch_size:
+                    logger.info(f"H100 BOOST: Increasing batch size from {self.batch_size} to {new_batch_size} for maximum utilization")
+                    self.batch_size = new_batch_size
+            # If still under 60%, reduce gradient accumulation for even more throughput
+            if allocated < total * 0.60:
+                new_grad_steps = max(1, self.gradient_accumulation_steps // 4)  # More aggressive reduction
+                if new_grad_steps != self.gradient_accumulation_steps:
+                    logger.info(f"H100 BOOST: Reducing gradient accumulation from {self.gradient_accumulation_steps} to {new_grad_steps} for maximum throughput")
+                    self.gradient_accumulation_steps = new_grad_steps
+        else:
+            # Standard aggressive settings for other GPUs
+            if allocated < total * 0.85:
+                new_batch_size = min(self.batch_size * 2, 8192)
+                if new_batch_size != self.batch_size:
+                    logger.info(f"Increasing batch size from {self.batch_size} to {new_batch_size} for better GPU utilization")
+                    self.batch_size = new_batch_size
+            
+            if allocated < total * 0.75:
+                new_grad_steps = max(2, self.gradient_accumulation_steps // 2)
+                if new_grad_steps != self.gradient_accumulation_steps:
+                    logger.info(f"Reducing gradient accumulation from {self.gradient_accumulation_steps} to {new_grad_steps} for better GPU utilization")
+                    self.gradient_accumulation_steps = new_grad_steps
         
         return self.batch_size
     
@@ -457,15 +472,31 @@ class GPUTrainer:
         val_size = len(dataset) - train_size
         train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size])
         
-        # Create data loaders with memory optimization
+        # Detect H100 and optimize DataLoader accordingly
+        gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1e9 if torch.cuda.is_available() else 0
+        
+        if gpu_memory >= 80:  # H100 class - MAXIMUM THROUGHPUT
+            train_workers = 16  # More workers for H100
+            val_workers = 8
+            prefetch = 8        # More prefetch for massive batches
+        elif gpu_memory >= 40:  # A100 class
+            train_workers = 12
+            val_workers = 6
+            prefetch = 6
+        else:  # Standard GPUs
+            train_workers = 4
+            val_workers = 2
+            prefetch = 2
+        
+        # Create data loaders optimized for GPU class
         train_loader = DataLoader(
             train_dataset,
             batch_size=self.batch_size,
             shuffle=True,
-            num_workers=4,  # Reduced from 8 to save RAM
+            num_workers=train_workers,  # Optimized for GPU class
             pin_memory=True,
             persistent_workers=True,  # Keep workers alive between epochs
-            prefetch_factor=2,  # Reduced from 4 to save RAM
+            prefetch_factor=prefetch,  # Optimized prefetch
             drop_last=True,  # Drop incomplete batches for consistent training
             generator=torch.Generator(device='cpu')  # Use CPU generator to save GPU memory
         )
@@ -474,10 +505,10 @@ class GPUTrainer:
             val_dataset,
             batch_size=self.batch_size,
             shuffle=False,
-            num_workers=2,  # Reduced from 8 to save RAM
+            num_workers=val_workers,  # Optimized for GPU class
             pin_memory=True,
             persistent_workers=True,  # Keep workers alive between epochs
-            prefetch_factor=2,  # Reduced from 4 to save RAM
+            prefetch_factor=prefetch,  # Optimized prefetch
             drop_last=True,  # Drop incomplete batches for consistent validation
             generator=torch.Generator(device='cpu')  # Use CPU generator to save GPU memory
         )
@@ -685,6 +716,8 @@ def main():
     parser.add_argument('--batch-size', type=int, help='Override automatic batch size')
     parser.add_argument('--aggressive-opt', action='store_true', 
                        help='Enable aggressive GPU optimization (larger batches, more workers)')
+    parser.add_argument('--ultra-aggressive', action='store_true',
+                       help='Enable ULTRA-aggressive optimization for H100/A100 (maximum utilization)')
     parser.add_argument('--memory-opt', action='store_true',
                        help='Enable memory optimization (smaller workers, on-demand loading)')
     parser.add_argument('--grad-accum', type=int, default=4, 
@@ -692,8 +725,35 @@ def main():
     
     args = parser.parse_args()
     
-    # Apply aggressive optimization if requested
-    if args.aggressive_opt:
+    # Apply ultra-aggressive optimization for H100/A100
+    if args.ultra_aggressive:
+        if torch.cuda.is_available():
+            gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1e9
+            gpu_name = torch.cuda.get_device_name(0)
+            
+            # Ultra-aggressive settings for high-end GPUs
+            torch.backends.cudnn.benchmark = True
+            torch.backends.cuda.matmul.allow_tf32 = True
+            torch.backends.cudnn.allow_tf32 = True
+            torch.cuda.set_per_process_memory_fraction(0.995)  # Use 99.5% of GPU memory!
+            torch.cuda.memory.set_per_process_memory_fraction(0.995)
+            
+            # Enable ALL optimizations
+            torch.backends.cuda.enable_math_sdp(True)
+            torch.backends.cuda.enable_flash_sdp(True)
+            torch.backends.cuda.enable_mem_efficient_sdp(True)
+            
+            # Additional ultra-aggressive settings
+            torch.backends.cudnn.deterministic = False  # Disable for max performance
+            torch.backends.cudnn.enabled = True
+            torch.backends.cudnn.benchmark = True
+            
+            logger.info(f"🚀 ULTRA-AGGRESSIVE MODE ENABLED for {gpu_name} ({gpu_memory:.0f}GB)")
+            logger.info("🔥 Target: 75-85% GPU utilization, 60-70GB VRAM usage")
+            logger.info("⚡ Batch sizes: 16K-65K, Gradient accumulation: 1-2 steps")
+    
+    # Apply standard aggressive optimization if requested
+    elif args.aggressive_opt:
         # Set even more aggressive CUDA settings
         if torch.cuda.is_available():
             torch.backends.cudnn.benchmark = True
@@ -707,12 +767,13 @@ def main():
             torch.backends.cuda.enable_flash_sdp(True)
             torch.backends.cuda.enable_mem_efficient_sdp(True)
             
-            logger.info("Ultra-aggressive GPU optimization enabled")
+            logger.info("Aggressive GPU optimization enabled")
     
     logger.info("=== GPU Training for RP2040 Production Models ===")
     logger.info(f"Model: {args.model}")
     logger.info(f"Dataset: {args.dataset_percent}%")
     logger.info(f"Epochs: {args.epochs}")
+    logger.info(f"Ultra-aggressive optimization: {args.ultra_aggressive}")
     logger.info(f"Aggressive optimization: {args.aggressive_opt}")
     logger.info(f"Gradient accumulation: {args.grad_accum} steps")
     

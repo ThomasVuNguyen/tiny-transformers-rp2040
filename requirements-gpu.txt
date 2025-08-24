@@ -10,7 +10,9 @@ torchaudio>=2.0.0
 numpy>=1.21.0
 tqdm>=4.64.0
 
+# GPU monitoring and utilities
+pynvml>=11.0.0  # Required for torch.cuda.utilization()
+
 # Optional: For better performance
 # Install these if you have them available:
-# nvidia-ml-py3  # For GPU monitoring
 # tensorboard    # For training visualization

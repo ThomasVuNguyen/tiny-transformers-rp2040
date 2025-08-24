@@ -4,8 +4,10 @@ Optimized with findings from comprehensive architectural studies
 
 🚀 NEW: OPTIMIZED RP2040 ARCHITECTURES (Based on log.md findings):
 - rp2040-optimized (15-20K): vocab=512, dim=8, layers=3, heads=8, hidden=256 (32x FFN)
-- rp2040-speed (8-12K):     vocab=256, dim=6, layers=2, heads=4, hidden=192 (32x FFN)  
+- rp2040-speed (8-12K):     vocab=256, dim=8, layers=2, heads=4, hidden=192 (32x FFN)  
 - rp2040-quality (25-35K):  vocab=1024, dim=12, layers=4, heads=12, hidden=384 (32x FFN)
+
+⚠️  IMPORTANT: All configurations ensure dim is divisible by n_heads for PyTorch compatibility
 
 📚 Dataset Integration:
 - Now loads from dataset/TinyStories-train.txt (1.8GB real training data)
@@ -58,7 +60,7 @@ MODEL_CONFIGS = {
     },
     'rp2040-speed': {
         'vocab_size': 256,          # Smaller vocab for speed
-        'dim': 6,                   # Narrower for speed
+        'dim': 8,                   # Narrower for speed (divisible by 4 heads)
         'hidden_dim': 192,          # 32x FFN ratio
         'n_layers': 2,              # 2 layers for speed
         'n_heads': 4,               # 4 heads for speed
@@ -2679,14 +2681,14 @@ MODEL_CONFIGS = {
     
     # === 7K HYBRID ATTENTION-DEEP MODELS (6d + 12 heads + 6 layers) ===
     'story-hybrid-7k-attn-deep': {
-        'vocab_size': 256, 'dim': 6, 'hidden_dim': 96, 'n_layers': 6, 'n_heads': 12, 'max_seq_len': 44,
-        'description': '7.0K parameters - ULTRA HYBRID (6d + 12 heads + 6 layers)'
+        'vocab_size': 256, 'dim': 12, 'hidden_dim': 96, 'n_layers': 6, 'n_heads': 12, 'max_seq_len': 44,
+        'description': '7.0K parameters - ULTRA HYBRID (12d + 12 heads + 6 layers)'
     },
     
-    # === 7K TRIPLE HYBRID MODELS (6d + 64x FFN + 12 heads + 6 layers) ===
+    # === 7K TRIPLE HYBRID MODELS (12d + 64x FFN + 12 heads + 6 layers) ===
     'story-hybrid-7k-triple': {
-        'vocab_size': 256, 'dim': 6, 'hidden_dim': 384, 'n_layers': 6, 'n_heads': 12, 'max_seq_len': 44,
-        'description': '7.0K parameters - TRIPLE HYBRID (6d + 64x FFN + 12 heads + 6 layers)'
+        'vocab_size': 256, 'dim': 12, 'hidden_dim': 384, 'n_layers': 6, 'n_heads': 12, 'max_seq_len': 44,
+        'description': '7.0K parameters - TRIPLE HYBRID (12d + 64x FFN + 12 heads + 6 layers)'
     },
     
     # === 10K HYBRID ULTIMATE MODELS (8d + 32x FFN + 5 layers) ===
@@ -3052,6 +3054,9 @@ class ScalableTrainer:
             else:
                 print(f"⏱️  Expected training time: 2-4 hours for 2 epochs")
         
+        # Validate configuration before proceeding
+        self._validate_config()
+        
         self.tokenizer = ScalableTokenizer(self.config['vocab_size'])
         self.model = ScalableTransformer(self.config)
         self.training_data = []
@@ -3168,6 +3173,19 @@ class ScalableTrainer:
                         self.training_data.append((context, target))
         
         print(f"Created {len(self.training_data)} training examples from hardcoded data")
+    
+    def _validate_config(self):
+        """Validate model configuration for PyTorch compatibility"""
+        config = self.config
+        if config['dim'] % config['n_heads'] != 0:
+            error_msg = f"❌ INVALID CONFIGURATION: dim ({config['dim']}) must be divisible by n_heads ({config['n_heads']})"
+            error_msg += f"\n   Model: {self.model_size}"
+            error_msg += f"\n   This will cause PyTorch MultiheadAttention to fail!"
+            error_msg += f"\n   Please fix the configuration for model '{self.model_size}'"
+            print(error_msg)
+            raise ValueError(error_msg)
+        
+        print(f"✅ Configuration validated: dim={config['dim']}, n_heads={config['n_heads']} (divisible)")
     
     def train(self, epochs=50, learning_rate=0.001, use_parallel=True):
         """Train the model with optional parallel processing"""

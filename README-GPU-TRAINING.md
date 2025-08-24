@@ -9,7 +9,7 @@ Based on the findings in `log.md`, we have three optimized architectures:
 | Model | Parameters | Architecture | Use Case |
 |-------|------------|--------------|----------|
 | `rp2040-optimized` | 15-20K | vocab=512, dim=8, layers=3, heads=8, hidden=256 | **Production-ready** - Best balance of speed and quality |
-| `rp2040-speed` | 8-12K | vocab=256, dim=6, layers=2, heads=4, hidden=192 | **Speed-focused** - Fastest inference on RP2040 |
+| `rp2040-speed` | 8-12K | vocab=256, dim=8, layers=2, heads=4, hidden=192 | **Speed-focused** - Fastest inference on RP2040 |
 | `rp2040-quality` | 25-35K | vocab=1024, dim=12, layers=4, heads=12, hidden=384 | **Quality-focused** - Highest quality text generation |
 
 ## 🎯 Key Features
@@ -21,6 +21,7 @@ Based on the findings in `log.md`, we have three optimized architectures:
 - **Early Stopping**: Prevents overfitting with validation-based early stopping
 - **Checkpointing**: Saves best models and regular checkpoints
 - **Training History**: Logs all training metrics for analysis
+- **Configuration Validation**: Automatically validates model configurations for PyTorch compatibility
 
 ## 📋 Requirements
 
@@ -36,8 +37,27 @@ pip install -r requirements-gpu.txt
 
 # Or install manually:
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
-pip install numpy tqdm
+pip install numpy tqdm pynvml
 ```
+
+## 🚀 Quick Installation
+
+### Option 1: Automatic Installation (Recommended)
+```bash
+python install-gpu-deps.py
+```
+
+### Option 2: Manual Installation
+```bash
+pip install -r requirements-gpu.txt
+```
+
+### Option 3: Install Core Dependencies Only
+```bash
+pip install torch torchvision torchaudio numpy tqdm pynvml
+```
+
+**Note**: `pynvml` is required for GPU utilization monitoring. Without it, you'll see "N/A" for GPU utilization in training progress.
 
 ## 🚀 Quick Start
 
@@ -161,6 +181,11 @@ python train-gpu.py --model rp2040-quality --dataset-percent 25 --epochs 100
 - Check GPU driver compatibility
 - Verify CUDA toolkit installation
 
+### GPU Monitoring Issues
+- **Error**: `ModuleNotFoundError: pynvml does not seem to be installed`
+- **Solution**: Install pynvml: `pip install pynvml`
+- **Alternative**: The training will continue with "N/A" for GPU utilization
+
 ### Slow Training
 - Check GPU utilization with `nvidia-smi`
 - Ensure mixed precision is working
@@ -186,20 +211,41 @@ The script provides detailed logging:
 
 ## 🔄 Model Conversion
 
-After training, convert PyTorch models to RP2040 format:
+After training, convert PyTorch models to RP2040 format using our simple conversion script:
 
-```python
-# Example conversion script (to be implemented)
-from train_gpu import ProductionTransformer
-import torch
+### Simple Conversion
+```bash
+# Convert any trained model to RP2040 format
+python model-convert.py rp2040-speed
+python model-convert.py rp2040-optimized
+python model-convert.py my-custom-model
+```
 
-# Load trained model
-checkpoint = torch.load('checkpoints/best_rp2040-optimized_50p.pt')
-model = ProductionTransformer(checkpoint['config'])
-model.load_state_dict(checkpoint['model_state_dict'])
+### What It Does
+1. **Takes** `checkpoints/model-name.pt`
+2. **Creates** `models/model-name/` folder
+3. **Generates** all necessary files for RP2040 inference
 
-# Convert to RP2040 format
-# ... conversion logic ...
+### File Structure for RP2040
+```
+models/
+└── rp2040-speed/
+    ├── model_256p.bin      # Converted model weights
+    ├── vocab_256p.bin      # Vocabulary file
+    └── config_256p.json    # Model configuration
+```
+
+### Complete Workflow
+```bash
+# 1. Train your model
+python train-gpu2.py --model rp2040-speed --dataset-percent 10 --epochs 100
+
+# 2. Convert to RP2040 format (one command!)
+python model-convert.py rp2040-speed
+
+# 3. Copy to RP2040 and test
+# Copy models/rp2040-speed/ folder to your RP2040
+# Run: python inference.py
 ```
 
 ## 📚 Technical Details

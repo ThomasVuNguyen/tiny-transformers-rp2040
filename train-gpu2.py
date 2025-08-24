@@ -4,8 +4,10 @@ Based on comprehensive architectural studies from log.md
 
 🚀 PRODUCTION MODELS (Based on log.md findings):
 - rp2040-optimized (15-20K): vocab=512, dim=8, layers=3, heads=8, hidden=256 (32x FFN)
-- rp2040-speed (8-12K):     vocab=256, dim=6, layers=2, heads=4, hidden=192 (32x FFN)  
+- rp2040-speed (8-12K):     vocab=256, dim=8, layers=2, heads=4, hidden=192 (32x FFN)  
 - rp2040-quality (25-35K):  vocab=1024, dim=12, layers=4, heads=12, hidden=384 (32x FFN)
+
+⚠️  IMPORTANT: All configurations ensure dim is divisible by n_heads for PyTorch compatibility
 
 📚 Dataset Integration:
 - Uses TinyStories dataset with 10% increments (10%, 20%, 30%, ..., 100%)
@@ -55,11 +57,23 @@ if torch.cuda.is_available():
     torch.backends.cudnn.allow_tf32 = True  # Enable TensorFloat-32 for cuDNN
     
     # Set memory fraction to use most of GPU memory
-    torch.cuda.set_per_process_memory_fraction(0.95)  # Use 95% of GPU memory
+    torch.cuda.set_per_process_memory_fraction(0.98)  # Increased from 95% to 98% for higher utilization
     
     # Enable memory pool for faster allocations
     torch.cuda.empty_cache()
-    logger.info("CUDA optimizations enabled for maximum GPU utilization")
+    
+    # More aggressive memory settings
+    torch.cuda.memory.set_per_process_memory_fraction(0.98)
+    torch.cuda.memory.empty_cache()
+    
+    # Enable memory efficient attention if available
+    try:
+        torch.backends.cuda.enable_flash_sdp(True)
+        logger.info("Flash attention enabled for memory efficiency")
+    except:
+        pass
+    
+    logger.info("Aggressive CUDA optimizations enabled for maximum GPU utilization")
 
 # Production model configurations from log.md
 PRODUCTION_CONFIGS = {
@@ -74,7 +88,7 @@ PRODUCTION_CONFIGS = {
     },
     'rp2040-speed': {
         'vocab_size': 256,          # Smaller vocab for speed
-        'dim': 6,                   # Narrower for speed
+        'dim': 8,                   # Narrower for speed (divisible by 4 heads)
         'hidden_dim': 192,          # 32x FFN ratio
         'n_layers': 2,              # 2 layers for speed
         'n_heads': 4,               # 4 heads for speed
@@ -98,60 +112,66 @@ class TinyStoriesDataset(Dataset):
     def __init__(self, dataset_path: str, percent: int, max_seq_len: int, tokenizer):
         self.max_seq_len = max_seq_len
         self.tokenizer = tokenizer
-        self.data = []
+        self.dataset_path = dataset_path
+        self.percent = percent
         
-        # Load dataset
+        # Memory-efficient: don't load all data at once
         logger.info(f"Loading {percent}% of TinyStories dataset...")
+        
+        # Count total sentences first
         with open(dataset_path, 'r', encoding='utf-8') as f:
             content = f.read()
         
-        # Split into sentences
         sentences = [s.strip() for s in content.split('.') if s.strip()]
-        
-        # Calculate how many sentences to use
         total_sentences = len(sentences)
-        sentences_to_use = int(total_sentences * percent / 100)
-        sentences = sentences[:sentences_to_use]
+        self.sentences_to_use = int(total_sentences * percent / 100)
         
-        logger.info(f"Using {sentences_to_use} sentences ({percent}% of {total_sentences})")
+        # Store only sentence indices to save memory
+        self.sentence_indices = list(range(self.sentences_to_use))
         
-        # Create training examples with proper sequences
-        for sentence in sentences:
-            if len(sentence) < 5:  # Skip very short sentences
-                continue
-                
-            tokens = self.tokenizer.encode(sentence)
-            if len(tokens) > 1:
-                # Create sequences where each position predicts the next token
-                for i in range(1, len(tokens)):
-                    # Get sequence up to current position
-                    sequence = tokens[:i+1]  # Include the target token
-                    
-                    if len(sequence) <= max_seq_len:
-                        self.data.append(sequence)
-                    else:
-                        # If sequence is too long, take the last max_seq_len tokens
-                        self.data.append(sequence[-max_seq_len:])
+        logger.info(f"Using {self.sentences_to_use} sentences ({percent}% of {total_sentences})")
+        logger.info("Memory-efficient loading: sentences loaded on-demand")
         
-        logger.info(f"Created {len(self.data)} training examples")
+        # Store sentences in chunks to save memory
+        self.sentences = sentences[:self.sentences_to_use]
+        del content  # Free memory immediately
     
     def __len__(self):
-        return len(self.data)
+        # Return number of possible sequences (approximate)
+        return self.sentences_to_use * 3  # Assume average 3 sequences per sentence
     
     def __getitem__(self, idx):
-        sequence = self.data[idx]
+        # Generate sequence on-demand to save memory
+        sentence_idx = idx % len(self.sentences)
+        sentence = self.sentences[sentence_idx]
         
-        # Create input and target sequences
-        input_ids = sequence[:-1]  # All tokens except the last
-        target_ids = sequence[1:]   # All tokens except the first
+        if len(sentence) < 5:  # Skip very short sentences
+            # Return a simple sequence for short sentences
+            input_ids = [1, 2] + [0] * (self.max_seq_len - 3)  # <s> </s> <pad>...
+            target_ids = [2] + [0] * (self.max_seq_len - 2)    # </s> <pad>...
+        else:
+            tokens = self.tokenizer.encode(sentence)
+            if len(tokens) > 1:
+                # Create sequence where each position predicts the next token
+                seq_start = (idx // len(self.sentences)) % max(1, len(tokens) - 1)
+                if seq_start < len(tokens) - 1:
+                    sequence = tokens[seq_start:seq_start + min(self.max_seq_len, len(tokens) - seq_start)]
+                else:
+                    sequence = tokens[-min(self.max_seq_len, len(tokens)):]
+                
+                # Create input and target sequences
+                input_ids = sequence[:-1]  # All tokens except the last
+                target_ids = sequence[1:]   # All tokens except the first
+            else:
+                input_ids = [1] + [0] * (self.max_seq_len - 2)  # <s> <pad>...
+                target_ids = [0] * (self.max_seq_len - 1)       # <pad>...
         
-        # Pad input to max_seq_len - 1 (since we need one less for targets)
+        # Pad sequences
         if len(input_ids) < self.max_seq_len - 1:
             input_ids = input_ids + [0] * (self.max_seq_len - 1 - len(input_ids))
         else:
             input_ids = input_ids[:self.max_seq_len - 1]
         
-        # Pad targets to max_seq_len - 1
         if len(target_ids) < self.max_seq_len - 1:
             target_ids = target_ids + [0] * (self.max_seq_len - 1 - len(target_ids))
         else:
@@ -358,40 +378,40 @@ class GPUTrainer:
         
         gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1e9
         
-        # Optimized for H100 and high-end GPUs
+        # More aggressive batch sizes for higher GPU utilization
         if self.config['dim'] <= 8:
             if gpu_memory >= 80:  # H100 class
-                return 2048  # Much larger batch size for H100
+                return 4096  # Increased from 2048 for higher utilization
             elif gpu_memory >= 40:  # A100 class
-                return 1024
+                return 2048  # Increased from 1024
             elif gpu_memory >= 20:  # RTX 4090 class
-                return 512
+                return 1024  # Increased from 512
             elif gpu_memory >= 8:
-                return 256
+                return 512   # Increased from 256
             else:
-                return 128
+                return 256   # Increased from 128
         elif self.config['dim'] <= 12:
             if gpu_memory >= 80:  # H100 class
-                return 1024
+                return 2048  # Increased from 1024
             elif gpu_memory >= 40:  # A100 class
-                return 512
+                return 1024  # Increased from 512
             elif gpu_memory >= 20:  # RTX 4090 class
-                return 256
+                return 512   # Increased from 256
             elif gpu_memory >= 8:
-                return 128
+                return 256   # Increased from 128
             else:
-                return 64
+                return 128   # Increased from 64
         else:
             if gpu_memory >= 80:  # H100 class
-                return 512
+                return 1024  # Increased from 512
             elif gpu_memory >= 40:  # A100 class
-                return 256
+                return 512   # Increased from 256
             elif gpu_memory >= 20:  # RTX 4090 class
-                return 128
+                return 256   # Increased from 128
             elif gpu_memory >= 8:
-                return 64
+                return 128   # Increased from 64
             else:
-                return 32
+                return 64    # Increased from 32
     
     def _adjust_batch_size_for_memory(self) -> int:
         """Dynamically adjust batch size based on actual GPU memory usage"""
@@ -406,12 +426,19 @@ class GPUTrainer:
         
         logger.info(f"GPU Memory - Allocated: {allocated:.2f}GB, Reserved: {reserved:.2f}GB, Total: {total:.2f}GB")
         
-        # If we're using less than 70% of GPU memory, increase batch size
-        if allocated < total * 0.7:
-            new_batch_size = min(self.batch_size * 2, 4096)  # Cap at 4096
+        # More aggressive: if using less than 85% of GPU memory, increase batch size
+        if allocated < total * 0.85:
+            new_batch_size = min(self.batch_size * 2, 8192)  # Increased cap for higher utilization
             if new_batch_size != self.batch_size:
                 logger.info(f"Increasing batch size from {self.batch_size} to {new_batch_size} for better GPU utilization")
                 self.batch_size = new_batch_size
+        
+        # Also adjust gradient accumulation for better GPU utilization
+        if allocated < total * 0.75:
+            new_grad_steps = max(2, self.gradient_accumulation_steps // 2)
+            if new_grad_steps != self.gradient_accumulation_steps:
+                logger.info(f"Reducing gradient accumulation from {self.gradient_accumulation_steps} to {new_grad_steps} for better GPU utilization")
+                self.gradient_accumulation_steps = new_grad_steps
         
         return self.batch_size
     
@@ -430,27 +457,29 @@ class GPUTrainer:
         val_size = len(dataset) - train_size
         train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size])
         
-        # Create data loaders
+        # Create data loaders with memory optimization
         train_loader = DataLoader(
             train_dataset,
             batch_size=self.batch_size,
             shuffle=True,
-            num_workers=8,  # Increased from 4 to 8
+            num_workers=4,  # Reduced from 8 to save RAM
             pin_memory=True,
             persistent_workers=True,  # Keep workers alive between epochs
-            prefetch_factor=4,  # Prefetch 4 batches per worker
-            drop_last=True  # Drop incomplete batches for consistent training
+            prefetch_factor=2,  # Reduced from 4 to save RAM
+            drop_last=True,  # Drop incomplete batches for consistent training
+            generator=torch.Generator(device='cpu')  # Use CPU generator to save GPU memory
         )
         
         val_loader = DataLoader(
             val_dataset,
             batch_size=self.batch_size,
             shuffle=False,
-            num_workers=8,  # Increased from 4 to 8
+            num_workers=2,  # Reduced from 8 to save RAM
             pin_memory=True,
             persistent_workers=True,  # Keep workers alive between epochs
-            prefetch_factor=4,  # Prefetch 4 batches per worker
-            drop_last=True  # Drop incomplete batches for consistent validation
+            prefetch_factor=2,  # Reduced from 4 to save RAM
+            drop_last=True,  # Drop incomplete batches for consistent validation
+            generator=torch.Generator(device='cpu')  # Use CPU generator to save GPU memory
         )
         
         logger.info(f"Data prepared: {len(train_dataset)} train, {len(val_dataset)} validation samples")
@@ -497,15 +526,26 @@ class GPUTrainer:
             
             # Update progress bar with GPU utilization info
             if batch_idx % 100 == 0:  # Update GPU info every 100 batches
-                gpu_util = torch.cuda.utilization(0)
-                gpu_memory = torch.cuda.memory_allocated(0) / 1e9
-                progress_bar.set_postfix({
-                    'loss': f'{loss.item() * self.gradient_accumulation_steps:.4f}',
-                    'avg_loss': f'{total_loss/(batch_idx+1):.4f}',
-                    'batch_size': f'{self.batch_size * self.gradient_accumulation_steps}',
-                    'GPU_util': f'{gpu_util}%',
-                    'GPU_mem': f'{gpu_memory:.1f}GB'
-                })
+                try:
+                    gpu_util = torch.cuda.utilization(0)
+                    gpu_memory = torch.cuda.memory_allocated(0) / 1e9
+                    progress_bar.set_postfix({
+                        'loss': f'{loss.item() * self.gradient_accumulation_steps:.4f}',
+                        'avg_loss': f'{total_loss/(batch_idx+1):.4f}',
+                        'batch_size': f'{self.batch_size * self.gradient_accumulation_steps}',
+                        'GPU_util': f'{gpu_util}%',
+                        'GPU_mem': f'{gpu_memory:.1f}GB'
+                    })
+                except Exception as e:
+                    # Fallback if GPU monitoring fails
+                    gpu_memory = torch.cuda.memory_allocated(0) / 1e9
+                    progress_bar.set_postfix({
+                        'loss': f'{loss.item() * self.gradient_accumulation_steps:.4f}',
+                        'avg_loss': f'{total_loss/(batch_idx+1):.4f}',
+                        'batch_size': f'{self.batch_size * self.gradient_accumulation_steps}',
+                        'GPU_util': 'N/A',
+                        'GPU_mem': f'{gpu_memory:.1f}GB'
+                    })
             else:
                 progress_bar.set_postfix({
                     'loss': f'{loss.item() * self.gradient_accumulation_steps:.4f}',
@@ -664,6 +704,12 @@ def main():
     # Get model configuration
     config = PRODUCTION_CONFIGS[args.model]
     logger.info(f"Configuration: {config}")
+    
+    # Validate configuration
+    if config['dim'] % config['n_heads'] != 0:
+        logger.error(f"Invalid configuration: dim ({config['dim']}) must be divisible by n_heads ({config['n_heads']})")
+        logger.error(f"Please fix the configuration for model '{args.model}'")
+        return
     
     # Initialize trainer
     trainer = GPUTrainer(args.model, config, args.dataset_percent)

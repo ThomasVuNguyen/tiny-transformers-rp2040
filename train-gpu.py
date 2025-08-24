@@ -4,8 +4,10 @@ Based on comprehensive architectural studies from log.md
 
 🚀 PRODUCTION MODELS (Based on log.md findings):
 - rp2040-optimized (15-20K): vocab=512, dim=8, layers=3, heads=8, hidden=256 (32x FFN)
-- rp2040-speed (8-12K):     vocab=256, dim=6, layers=2, heads=4, hidden=192 (32x FFN)  
+- rp2040-speed (8-12K):     vocab=256, dim=8, layers=2, heads=4, hidden=192 (32x FFN)  
 - rp2040-quality (25-35K):  vocab=1024, dim=12, layers=4, heads=12, hidden=384 (32x FFN)
+
+⚠️  IMPORTANT: All configurations ensure dim is divisible by n_heads for PyTorch compatibility
 
 📚 Dataset Integration:
 - Uses TinyStories dataset with 10% increments (10%, 20%, 30%, ..., 100%)
@@ -61,7 +63,7 @@ PRODUCTION_CONFIGS = {
     },
     'rp2040-speed': {
         'vocab_size': 256,          # Smaller vocab for speed
-        'dim': 6,                   # Narrower for speed
+        'dim': 8,                   # Narrower for speed (divisible by 4 heads)
         'hidden_dim': 192,          # 32x FFN ratio
         'n_layers': 2,              # 2 layers for speed
         'n_heads': 4,               # 4 heads for speed
@@ -571,6 +573,12 @@ def main():
     # Get model configuration
     config = PRODUCTION_CONFIGS[args.model]
     logger.info(f"Configuration: {config}")
+    
+    # Validate configuration
+    if config['dim'] % config['n_heads'] != 0:
+        logger.error(f"Invalid configuration: dim ({config['dim']}) must be divisible by n_heads ({config['n_heads']})")
+        logger.error(f"Please fix the configuration for model '{args.model}'")
+        return
     
     # Initialize trainer
     trainer = GPUTrainer(args.model, config, args.dataset_percent)

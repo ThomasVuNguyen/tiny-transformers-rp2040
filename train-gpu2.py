@@ -47,6 +47,19 @@ logger.info(f"Using device: {device}")
 if torch.cuda.is_available():
     logger.info(f"GPU: {torch.cuda.get_device_name(0)}")
     logger.info(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
+    
+    # CUDA optimizations for maximum GPU utilization
+    torch.backends.cudnn.benchmark = True  # Enable cuDNN auto-tuner
+    torch.backends.cudnn.deterministic = False  # Disable for performance
+    torch.backends.cuda.matmul.allow_tf32 = True  # Enable TensorFloat-32 for Ampere+
+    torch.backends.cudnn.allow_tf32 = True  # Enable TensorFloat-32 for cuDNN
+    
+    # Set memory fraction to use most of GPU memory
+    torch.cuda.set_per_process_memory_fraction(0.95)  # Use 95% of GPU memory
+    
+    # Enable memory pool for faster allocations
+    torch.cuda.empty_cache()
+    logger.info("CUDA optimizations enabled for maximum GPU utilization")
 
 # Production model configurations from log.md
 PRODUCTION_CONFIGS = {
@@ -314,6 +327,9 @@ class GPUTrainer:
         self.learning_rate = 1e-4
         self.weight_decay = 1e-2
         
+        # Gradient accumulation for larger effective batch size
+        self.gradient_accumulation_steps = 4  # Default value, can be overridden by command line
+        
         # Initialize optimizer and scheduler
         self.optimizer = optim.AdamW(
             self.model.parameters(),
@@ -342,27 +358,62 @@ class GPUTrainer:
         
         gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1e9
         
+        # Optimized for H100 and high-end GPUs
         if self.config['dim'] <= 8:
-            if gpu_memory >= 8:
+            if gpu_memory >= 80:  # H100 class
+                return 2048  # Much larger batch size for H100
+            elif gpu_memory >= 40:  # A100 class
+                return 1024
+            elif gpu_memory >= 20:  # RTX 4090 class
+                return 512
+            elif gpu_memory >= 8:
+                return 256
+            else:
                 return 128
-            elif gpu_memory >= 4:
-                return 64
-            else:
-                return 32
         elif self.config['dim'] <= 12:
-            if gpu_memory >= 8:
+            if gpu_memory >= 80:  # H100 class
+                return 1024
+            elif gpu_memory >= 40:  # A100 class
+                return 512
+            elif gpu_memory >= 20:  # RTX 4090 class
+                return 256
+            elif gpu_memory >= 8:
+                return 128
+            else:
                 return 64
-            elif gpu_memory >= 4:
-                return 32
-            else:
-                return 16
         else:
-            if gpu_memory >= 8:
-                return 32
-            elif gpu_memory >= 4:
-                return 16
+            if gpu_memory >= 80:  # H100 class
+                return 512
+            elif gpu_memory >= 40:  # A100 class
+                return 256
+            elif gpu_memory >= 20:  # RTX 4090 class
+                return 128
+            elif gpu_memory >= 8:
+                return 64
             else:
-                return 8
+                return 32
+    
+    def _adjust_batch_size_for_memory(self) -> int:
+        """Dynamically adjust batch size based on actual GPU memory usage"""
+        if not torch.cuda.is_available():
+            return self.batch_size
+        
+        # Get current GPU memory usage
+        torch.cuda.empty_cache()
+        allocated = torch.cuda.memory_allocated(0) / 1e9
+        reserved = torch.cuda.memory_reserved(0) / 1e9
+        total = torch.cuda.get_device_properties(0).total_memory / 1e9
+        
+        logger.info(f"GPU Memory - Allocated: {allocated:.2f}GB, Reserved: {reserved:.2f}GB, Total: {total:.2f}GB")
+        
+        # If we're using less than 70% of GPU memory, increase batch size
+        if allocated < total * 0.7:
+            new_batch_size = min(self.batch_size * 2, 4096)  # Cap at 4096
+            if new_batch_size != self.batch_size:
+                logger.info(f"Increasing batch size from {self.batch_size} to {new_batch_size} for better GPU utilization")
+                self.batch_size = new_batch_size
+        
+        return self.batch_size
     
     def prepare_data(self, dataset_path: str) -> Tuple[DataLoader, DataLoader]:
         """Prepare training and validation data"""
@@ -384,16 +435,22 @@ class GPUTrainer:
             train_dataset,
             batch_size=self.batch_size,
             shuffle=True,
-            num_workers=4,
-            pin_memory=True
+            num_workers=8,  # Increased from 4 to 8
+            pin_memory=True,
+            persistent_workers=True,  # Keep workers alive between epochs
+            prefetch_factor=4,  # Prefetch 4 batches per worker
+            drop_last=True  # Drop incomplete batches for consistent training
         )
         
         val_loader = DataLoader(
             val_dataset,
             batch_size=self.batch_size,
             shuffle=False,
-            num_workers=4,
-            pin_memory=True
+            num_workers=8,  # Increased from 4 to 8
+            pin_memory=True,
+            persistent_workers=True,  # Keep workers alive between epochs
+            prefetch_factor=4,  # Prefetch 4 batches per worker
+            drop_last=True  # Drop incomplete batches for consistent validation
         )
         
         logger.info(f"Data prepared: {len(train_dataset)} train, {len(val_dataset)} validation samples")
@@ -405,36 +462,56 @@ class GPUTrainer:
         total_loss = 0
         num_batches = len(train_loader)
         
+        # Adjust batch size for optimal GPU utilization
+        if epoch == 0:  # Only adjust on first epoch
+            self._adjust_batch_size_for_memory()
+        
         progress_bar = tqdm(train_loader, desc=f"Epoch {epoch+1} (Train)")
         
         for batch_idx, (input_ids, targets) in enumerate(progress_bar):
-            input_ids = input_ids.to(device)
-            targets = targets.to(device)
+            input_ids = input_ids.to(device, non_blocking=True)  # Non-blocking transfer
+            targets = targets.to(device, non_blocking=True)      # Non-blocking transfer
             
             # Forward pass with mixed precision
             with autocast('cuda'):
                 logits = self.model(input_ids)
                 loss = F.cross_entropy(logits.view(-1, self.config['vocab_size']), targets.view(-1))
+                # Scale loss for gradient accumulation
+                loss = loss / self.gradient_accumulation_steps
             
             # Backward pass
             self.scaler.scale(loss).backward()
             
-            # Gradient clipping
-            self.scaler.unscale_(self.optimizer)
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+            # Gradient accumulation: only step optimizer every N steps
+            if (batch_idx + 1) % self.gradient_accumulation_steps == 0:
+                # Gradient clipping
+                self.scaler.unscale_(self.optimizer)
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+                
+                # Optimizer step
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+                self.optimizer.zero_grad()
             
-            # Optimizer step
-            self.scaler.step(self.optimizer)
-            self.scaler.update()
-            self.optimizer.zero_grad()
+            total_loss += loss.item() * self.gradient_accumulation_steps
             
-            total_loss += loss.item()
-            
-            # Update progress bar
-            progress_bar.set_postfix({
-                'loss': f'{loss.item():.4f}',
-                'avg_loss': f'{total_loss/(batch_idx+1):.4f}'
-            })
+            # Update progress bar with GPU utilization info
+            if batch_idx % 100 == 0:  # Update GPU info every 100 batches
+                gpu_util = torch.cuda.utilization(0)
+                gpu_memory = torch.cuda.memory_allocated(0) / 1e9
+                progress_bar.set_postfix({
+                    'loss': f'{loss.item() * self.gradient_accumulation_steps:.4f}',
+                    'avg_loss': f'{total_loss/(batch_idx+1):.4f}',
+                    'batch_size': f'{self.batch_size * self.gradient_accumulation_steps}',
+                    'GPU_util': f'{gpu_util}%',
+                    'GPU_mem': f'{gpu_memory:.1f}GB'
+                })
+            else:
+                progress_bar.set_postfix({
+                    'loss': f'{loss.item() * self.gradient_accumulation_steps:.4f}',
+                    'avg_loss': f'{total_loss/(batch_idx+1):.4f}',
+                    'batch_size': f'{self.batch_size * self.gradient_accumulation_steps}'
+                })
         
         avg_loss = total_loss / num_batches
         self.train_losses.append(avg_loss)
@@ -448,8 +525,8 @@ class GPUTrainer:
         
         with torch.no_grad():
             for input_ids, targets in tqdm(val_loader, desc="Validation"):
-                input_ids = input_ids.to(device)
-                targets = targets.to(device)
+                input_ids = input_ids.to(device, non_blocking=True)  # Non-blocking transfer
+                targets = targets.to(device, non_blocking=True)      # Non-blocking transfer
                 
                 with autocast('cuda'):
                     logits = self.model(input_ids)
@@ -560,13 +637,29 @@ def main():
     parser.add_argument('--dataset-path', type=str, default='dataset/TinyStories-train.txt',
                        help='Path to TinyStories dataset')
     parser.add_argument('--batch-size', type=int, help='Override automatic batch size')
+    parser.add_argument('--aggressive-opt', action='store_true', 
+                       help='Enable aggressive GPU optimization (larger batches, more workers)')
+    parser.add_argument('--grad-accum', type=int, default=4, 
+                       help='Gradient accumulation steps (default: 4)')
     
     args = parser.parse_args()
+    
+    # Apply aggressive optimization if requested
+    if args.aggressive_opt:
+        # Set even more aggressive CUDA settings
+        if torch.cuda.is_available():
+            torch.backends.cudnn.benchmark = True
+            torch.backends.cuda.matmul.allow_tf32 = True
+            torch.backends.cudnn.allow_tf32 = True
+            torch.cuda.set_per_process_memory_fraction(0.98)  # Use 98% of GPU memory
+            logger.info("Aggressive GPU optimization enabled")
     
     logger.info("=== GPU Training for RP2040 Production Models ===")
     logger.info(f"Model: {args.model}")
     logger.info(f"Dataset: {args.dataset_percent}%")
     logger.info(f"Epochs: {args.epochs}")
+    logger.info(f"Aggressive optimization: {args.aggressive_opt}")
+    logger.info(f"Gradient accumulation: {args.grad_accum} steps")
     
     # Get model configuration
     config = PRODUCTION_CONFIGS[args.model]
@@ -579,6 +672,11 @@ def main():
     if args.batch_size:
         trainer.batch_size = args.batch_size
         logger.info(f"Using custom batch size: {args.batch_size}")
+    
+    # Override gradient accumulation if specified
+    if args.grad_accum != 4:
+        trainer.gradient_accumulation_steps = args.grad_accum
+        logger.info(f"Using custom gradient accumulation: {args.grad_accum} steps")
     
     # Prepare data
     if not os.path.exists(args.dataset_path):

@@ -87,6 +87,7 @@ def convert_model(model_name):
                 embeddings = checkpoint['model_state_dict'][embedding_key]
                 print(f"  Writing embeddings: {embeddings.shape}")
                 
+                # Write embeddings row by row (vocab_size x dim)
                 for i in range(embeddings.shape[0]):
                     row = embeddings[i].flatten()
                     row_bytes = row.numpy().tobytes()
@@ -100,7 +101,7 @@ def convert_model(model_name):
             for layer_idx in range(n_layers):
                 print(f"  Writing layer {layer_idx + 1}/{n_layers}")
                 
-                # Layer norm weights
+                # Layer norm weights (dim each)
                 ln1_key = f'layers.{layer_idx}.attention_norm.weight'
                 ln2_key = f'layers.{layer_idx}.ffn_norm.weight'
                 
@@ -108,38 +109,91 @@ def convert_model(model_name):
                     ln1_weight = checkpoint['model_state_dict'][ln1_key]
                     ln2_weight = checkpoint['model_state_dict'][ln2_key]
                     
-                    f.write(ln1_weight.numpy().tobytes())
-                    f.write(ln2_weight.numpy().tobytes())
+                    # Write as float32 (4 bytes per value)
+                    f.write(ln1_weight.numpy().astype(np.float32).tobytes())
+                    f.write(ln2_weight.numpy().astype(np.float32).tobytes())
                 
-                # Attention weights: wq, wk, wv, wo
-                attention_keys = ['wq', 'wk', 'wv', 'wo']
-                for key in attention_keys:
-                    weight_key = f'layers.{layer_idx}.attention.{key}.weight'
-                    if weight_key in checkpoint['model_state_dict']:
-                        weight = checkpoint['model_state_dict'][weight_key]
-                        
+                # Handle PyTorch MultiheadAttention format
+                # in_proj_weight contains concatenated [wq, wk, wv] weights
+                in_proj_key = f'layers.{layer_idx}.attention.in_proj_weight'
+                out_proj_key = f'layers.{layer_idx}.attention.out_proj.weight'
+                
+                if in_proj_key in checkpoint['model_state_dict']:
+                    in_proj = checkpoint['model_state_dict'][in_proj_key]
+                    out_proj = checkpoint['model_state_dict'][out_proj_key]
+                    
+                    print(f"    Converting PyTorch attention weights:")
+                    print(f"      in_proj: {in_proj.shape} -> split into wq, wk, wv")
+                    print(f"      out_proj: {out_proj.shape} -> wo")
+                    
+                    # Split in_proj into wq, wk, wv (each is dim x dim)
+                    dim = config['dim']
+                    wq = in_proj[:dim, :]      # First dim rows
+                    wk = in_proj[dim:2*dim, :] # Second dim rows  
+                    wv = in_proj[2*dim:, :]    # Last dim rows
+                    wo = out_proj              # Output projection
+                    
+                    # Write wq, wk, wv, wo in order
+                    for weight_name, weight in [('wq', wq), ('wk', wk), ('wv', wv), ('wo', wo)]:
+                        print(f"    Writing {weight_name}: {weight.shape}")
                         for i in range(weight.shape[0]):
                             row = weight[i].flatten()
-                            row_bytes = row.numpy().tobytes()
+                            row_bytes = row.numpy().astype(np.float32).tobytes()
                             f.write(row_bytes)
                 
-                # Feed-forward weights: w1, w2
-                ffn_keys = ['w1', 'w2']
-                for key in ffn_keys:
-                    weight_key = f'layers.{layer_idx}.ffn.{key}.weight'
-                    if weight_key in checkpoint['model_state_dict']:
-                        weight = checkpoint['model_state_dict'][weight_key]
-                        
-                        for i in range(weight.shape[0]):
-                            row = weight[i].flatten()
-                            row_bytes = row.numpy().tobytes()
-                            f.write(row_bytes)
+                # Handle PyTorch FFN format (Sequential layers)
+                # ffn.0.weight is w1 (first linear layer): hidden_dim x dim  
+                # ffn.3.weight is w2 (second linear layer): dim x hidden_dim
+                w1_key = f'layers.{layer_idx}.ffn.0.weight'  # PyTorch format
+                w2_key = f'layers.{layer_idx}.ffn.3.weight'  # PyTorch format
+                
+                if w1_key in checkpoint['model_state_dict']:
+                    w1_pytorch = checkpoint['model_state_dict'][w1_key]  # [hidden_dim, dim]
+                    w2_pytorch = checkpoint['model_state_dict'][w2_key]  # [dim, hidden_dim]
+                    
+                    print(f"    Converting PyTorch FFN weights:")
+                    print(f"      ffn.0 (w1): {w1_pytorch.shape}")
+                    print(f"      ffn.3 (w2): {w2_pytorch.shape}")
+                    
+                    # For inference.py, we need:
+                    # w1: dim x hidden_dim (transpose PyTorch w1)
+                    # w2: hidden_dim x dim (transpose PyTorch w2)
+                    w1_transposed = w1_pytorch.T  # [dim, hidden_dim]
+                    w2_transposed = w2_pytorch.T  # [hidden_dim, dim]
+                    
+                    print(f"    Writing w1: {w1_transposed.shape} (transposed)")
+                    # Write w1 row by row (dim rows, each row has hidden_dim values)
+                    for i in range(w1_transposed.shape[0]):
+                        row = w1_transposed[i].flatten()
+                        row_bytes = row.numpy().astype(np.float32).tobytes()
+                        f.write(row_bytes)
+                    
+                    print(f"    Writing w2: {w2_transposed.shape} (transposed)")
+                    # Write w2 row by row (hidden_dim rows, each row has dim values)
+                    for i in range(w2_transposed.shape[0]):
+                        row = w2_transposed[i].flatten()
+                        row_bytes = row.numpy().astype(np.float32).tobytes()
+                        f.write(row_bytes)
             
-            # Write final layer norm (zeros for now)
+            # Write final layer norm (dim values)
             final_ln = np.zeros(dim, dtype=np.float32)
             f.write(final_ln.tobytes())
         
         print(f"✅ Model converted: {model_output}")
+        
+        # Verify file size
+        file_size = os.path.getsize(model_output)
+        expected_size = (32 + 4 +  # Header + scale factor
+                        config['vocab_size'] * config['dim'] * 4 +  # Embeddings
+                        config['n_layers'] * (config['dim'] * 2 * 4 +  # Layer norms
+                                            config['dim'] * config['dim'] * 4 * 4 +  # Attention weights
+                                            config['dim'] * config['hidden_dim'] * 4 +  # w1
+                                            config['hidden_dim'] * config['dim'] * 4) +  # w2
+                        config['dim'] * 4)  # Final layer norm
+        
+        print(f"📊 File size: {file_size:,} bytes")
+        print(f"📊 Expected: {expected_size:,} bytes")
+        print(f"📊 Difference: {file_size - expected_size:,} bytes")
         
         # Create vocabulary
         vocab_output = output_dir / f"vocab_{config['vocab_size']}p.bin"

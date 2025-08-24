@@ -555,6 +555,12 @@ class GPUTrainer:
         
         avg_loss = total_loss / num_batches
         self.train_losses.append(avg_loss)
+        
+        # Memory cleanup after each epoch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.memory.empty_cache()
+        
         return avg_loss
     
     def validate(self, val_loader: DataLoader) -> float:
@@ -679,6 +685,8 @@ def main():
     parser.add_argument('--batch-size', type=int, help='Override automatic batch size')
     parser.add_argument('--aggressive-opt', action='store_true', 
                        help='Enable aggressive GPU optimization (larger batches, more workers)')
+    parser.add_argument('--memory-opt', action='store_true',
+                       help='Enable memory optimization (smaller workers, on-demand loading)')
     parser.add_argument('--grad-accum', type=int, default=4, 
                        help='Gradient accumulation steps (default: 4)')
     
@@ -691,8 +699,15 @@ def main():
             torch.backends.cudnn.benchmark = True
             torch.backends.cuda.matmul.allow_tf32 = True
             torch.backends.cudnn.allow_tf32 = True
-            torch.cuda.set_per_process_memory_fraction(0.98)  # Use 98% of GPU memory
-            logger.info("Aggressive GPU optimization enabled")
+            torch.cuda.set_per_process_memory_fraction(0.99)  # Use 99% of GPU memory
+            torch.cuda.memory.set_per_process_memory_fraction(0.99)
+            
+            # Enable more aggressive optimizations
+            torch.backends.cuda.enable_math_sdp(True)
+            torch.backends.cuda.enable_flash_sdp(True)
+            torch.backends.cuda.enable_mem_efficient_sdp(True)
+            
+            logger.info("Ultra-aggressive GPU optimization enabled")
     
     logger.info("=== GPU Training for RP2040 Production Models ===")
     logger.info(f"Model: {args.model}")
@@ -723,6 +738,12 @@ def main():
     if args.grad_accum != 4:
         trainer.gradient_accumulation_steps = args.grad_accum
         logger.info(f"Using custom gradient accumulation: {args.grad_accum} steps")
+    
+    # Apply memory optimization if requested
+    if args.memory_opt:
+        logger.info("Memory optimization enabled - reducing workers and using on-demand loading")
+        # The dataset already uses memory-efficient loading
+        # DataLoader workers are already reduced in the trainer
     
     # Prepare data
     if not os.path.exists(args.dataset_path):

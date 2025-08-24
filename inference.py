@@ -85,9 +85,9 @@ def fast_sqrt(x):
 MODELS_DIR = "models"  # Main models directory
 
 # File naming patterns (used for detection)
-MODEL_FILE_PATTERN = "model_{params}p.bin"      # e.g., "model_1024p.bin"
-VOCAB_FILE_PATTERN = "vocab_{params}p.bin"     # e.g., "vocab_1024p.bin"
-CONFIG_FILE_PATTERN = "config_{params}p.json"  # e.g., "config_1024p.json"
+MODEL_FILE_PATTERN = "model_{params}p[_{quant}].bin"      # e.g., "model_1024p.bin" or "model_1024p_float16.bin"
+VOCAB_FILE_PATTERN = "vocab_{params}p[_{quant}].bin"     # e.g., "vocab_1024p.bin" or "vocab_1024p_float16.bin"
+CONFIG_FILE_PATTERN = "config_{params}p[_{quant}].json"  # e.g., "config_1024p.bin" or "config_1024p_float16.bin"
 
 # Legacy file patterns (for backward compatibility)
 LEGACY_MODEL_PATTERN = "model_{name}.bin"      # e.g., "model_tiny.bin"
@@ -298,7 +298,7 @@ class ScalableTransformer:
             raise RuntimeError(f"Failed to load model from {model_file}")
     
     def _load_model(self, model_file):
-        """Load model from binary file"""
+        """Load model from binary file with quantization support"""
         print(f"Loading model: {model_file}")
         
         # Aggressive memory cleanup before loading
@@ -325,6 +325,17 @@ class ScalableTransformer:
                 self.n_heads = config_values[4]
                 self.max_seq_len = config_values[5]
                 
+                # Read quantization metadata (if present)
+                quant_metadata = f.read(4)  # 4 bytes for scale factor
+                if len(quant_metadata) == 4:
+                    self.scale_factor = struct.unpack("f", quant_metadata)[0]
+                    self.quantization = 'quantized'
+                    print(f"  Quantization: Scale factor = {self.scale_factor:.6f}")
+                else:
+                    self.scale_factor = 1.0
+                    self.quantization = 'float32'
+                    print(f"  Quantization: Standard float32")
+                
                 print(f"Model config:")
                 print(f"  Vocab size: {self.vocab_size:,}")
                 print(f"  Dimensions: {self.dim}")
@@ -340,9 +351,24 @@ class ScalableTransformer:
                 
                 print(f"  Parameters: {total_params:,} ({total_params/1000:.1f}K)")
                 
-                # Estimate memory needed
-                memory_needed = total_params * 4  # 4 bytes per float32
-                print(f"  Memory needed: {memory_needed:,} bytes ({memory_needed/1024:.1f}KB)")
+                # Estimate memory needed (account for quantization)
+                if self.quantization == 'quantized':
+                    # Estimate based on scale factor to determine quantization level
+                    if self.scale_factor > 100:  # Likely int4
+                        bytes_per_param = 0.5
+                        quant_type = "int4 (estimated)"
+                    elif self.scale_factor > 10:  # Likely int8
+                        bytes_per_param = 1.0
+                        quant_type = "int8 (estimated)"
+                    else:  # Likely float16
+                        bytes_per_param = 2.0
+                        quant_type = "float16 (estimated)"
+                else:
+                    bytes_per_param = 4.0
+                    quant_type = "float32"
+                
+                memory_needed = total_params * bytes_per_param
+                print(f"  Memory needed: {memory_needed:,} bytes ({memory_needed/1024:.1f}KB) - {quant_type}")
                 
                 current_free = gc.mem_free()
                 if memory_needed > current_free:
@@ -369,20 +395,43 @@ class ScalableTransformer:
                 
                 # Read embeddings row by row to avoid large memory allocation
                 self.token_embedding = []
-                bytes_per_row = self.dim * 4  # 4 bytes per float
+                
+                # Determine bytes per row based on quantization
+                if self.quantization == 'quantized':
+                    if self.scale_factor > 100:  # int4
+                        bytes_per_row = self.dim * 0.5
+                    elif self.scale_factor > 10:  # int8
+                        bytes_per_row = self.dim * 1
+                    else:  # float16
+                        bytes_per_row = self.dim * 2
+                else:
+                    bytes_per_row = self.dim * 4  # float32
                 
                 for i in range(self.vocab_size):
                     if i % 10 == 0:  # Progress indicator
                         gc.collect()  # Collect garbage every 10 rows
                     
-                    row_bytes = f.read(bytes_per_row)
-                    if len(row_bytes) != bytes_per_row:
-                        print(f"Expected {bytes_per_row} bytes for row {i}, got {len(row_bytes)}")
+                    row_bytes = f.read(int(bytes_per_row))
+                    if len(row_bytes) != int(bytes_per_row):
+                        print(f"Expected {int(bytes_per_row)} bytes for row {i}, got {len(row_bytes)}")
                         return False
                     
-                    # Unpack row and convert to list
-                    row_floats = struct.unpack(f'{self.dim}f', row_bytes)
-                    row = list(row_floats)  # Convert tuple to list
+                    # Unpack row based on quantization and convert to list
+                    if self.quantization == 'quantized':
+                        if self.scale_factor > 100:  # int4
+                            # Unpack as 4-bit values (stored in 8-bit arrays)
+                            row_ints = struct.unpack(f'{self.dim}B', row_bytes)
+                            row = [float(val) / self.scale_factor for val in row_ints]
+                        elif self.scale_factor > 10:  # int8
+                            row_ints = struct.unpack(f'{self.dim}b', row_bytes)
+                            row = [float(val) / self.scale_factor for val in row_ints]
+                        else:  # float16
+                            row_floats = struct.unpack(f'{self.dim}e', row_bytes)
+                            row = [float(val) for val in row_floats]
+                    else:
+                        row_floats = struct.unpack(f'{self.dim}f', row_bytes)
+                        row = [float(val) for val in row_floats]
+                    
                     self.token_embedding.append(row)
                 
                 mem.cleanup()
@@ -397,29 +446,79 @@ class ScalableTransformer:
                     layer = {}
                     
                     # Layer norms (small, load normally)
-                    ln1_bytes = f.read(self.dim * 4)
-                    ln2_bytes = f.read(self.dim * 4)
-                    layer['ln1_weight'] = list(struct.unpack(f'{self.dim}f', ln1_bytes))
-                    layer['ln2_weight'] = list(struct.unpack(f'{self.dim}f', ln2_bytes))
+                    if self.quantization == 'quantized':
+                        if self.scale_factor > 100:  # int4
+                            ln1_bytes = f.read(self.dim * 0.5)
+                            ln1_ints = struct.unpack(f'{self.dim}B', ln1_bytes)
+                            layer['ln1_weight'] = [float(val) / self.scale_factor for val in ln1_ints]
+                            
+                            ln2_bytes = f.read(self.dim * 0.5)
+                            ln2_ints = struct.unpack(f'{self.dim}B', ln2_bytes)
+                            layer['ln2_weight'] = [float(val) / self.scale_factor for val in ln2_ints]
+                        elif self.scale_factor > 10:  # int8
+                            ln1_bytes = f.read(self.dim * 1)
+                            ln1_ints = struct.unpack(f'{self.dim}b', ln1_bytes)
+                            layer['ln1_weight'] = [float(val) / self.scale_factor for val in ln1_ints]
+                            
+                            ln2_bytes = f.read(self.dim * 1)
+                            ln2_ints = struct.unpack(f'{self.dim}b', ln2_bytes)
+                            layer['ln2_weight'] = [float(val) / self.scale_factor for val in ln2_ints]
+                        else:  # float16
+                            ln1_bytes = f.read(self.dim * 2)
+                            ln1_floats = struct.unpack(f'{self.dim}e', ln1_bytes)
+                            layer['ln1_weight'] = list(ln1_floats)
+                            
+                            ln2_bytes = f.read(self.dim * 2)
+                            ln2_floats = struct.unpack(f'{self.dim}e', ln2_bytes)
+                            layer['ln2_weight'] = list(ln2_floats)
+                    else:
+                        ln1_bytes = f.read(self.dim * 4)
+                        ln2_bytes = f.read(self.dim * 4)
+                        layer['ln1_weight'] = list(struct.unpack(f'{self.dim}f', ln1_bytes))
+                        layer['ln2_weight'] = list(struct.unpack(f'{self.dim}f', ln2_bytes))
                     
                     # Attention weights - load row by row to avoid large allocations
                     attn_size = self.dim * self.dim
                     for weight_name in ['wq', 'wk', 'wv', 'wo']:
                         print(f"    Loading {weight_name}...")
                         matrix = []
-                        bytes_per_row = self.dim * 4
+                        
+                        # Determine bytes per row based on quantization
+                        if self.quantization == 'quantized':
+                            if self.scale_factor > 100:  # int4
+                                bytes_per_row = self.dim * 0.5
+                            elif self.scale_factor > 10:  # int8
+                                bytes_per_row = self.dim * 1
+                            else:  # float16
+                                bytes_per_row = self.dim * 2
+                        else:
+                            bytes_per_row = self.dim * 4  # float32
                         
                         for i in range(self.dim):
                             if i % 5 == 0:  # More frequent GC for attention matrices
                                 gc.collect()
                             
-                            row_bytes = f.read(bytes_per_row)
-                            if len(row_bytes) != bytes_per_row:
+                            row_bytes = f.read(int(bytes_per_row))
+                            if len(row_bytes) != int(bytes_per_row):
                                 print(f"Error reading {weight_name} row {i}")
                                 return False
                             
-                            row_floats = struct.unpack(f'{self.dim}f', row_bytes)
-                            matrix.append(list(row_floats))
+                            # Unpack row based on quantization
+                            if self.quantization == 'quantized':
+                                if self.scale_factor > 100:  # int4
+                                    row_ints = struct.unpack(f'{self.dim}B', row_bytes)
+                                    row = [float(val) / self.scale_factor for val in row_ints]
+                                elif self.scale_factor > 10:  # int8
+                                    row_ints = struct.unpack(f'{self.dim}b', row_bytes)
+                                    row = [float(val) / self.scale_factor for val in row_ints]
+                                else:  # float16
+                                    row_floats = struct.unpack(f'{self.dim}e', row_bytes)
+                                    row = [float(val) for val in row_floats]
+                            else:
+                                row_floats = struct.unpack(f'{self.dim}f', row_bytes)
+                                row = [float(val) for val in row_floats]
+                            
+                            matrix.append(row)
                         
                         layer[weight_name] = matrix
                     
@@ -427,43 +526,108 @@ class ScalableTransformer:
                     print(f"    Loading w1...")
                     # W1: dim x hidden_dim
                     w1_matrix = []
-                    w1_bytes_per_row = self.hidden_dim * 4
+                    
+                    # Determine bytes per row based on quantization
+                    if self.quantization == 'quantized':
+                        if self.scale_factor > 100:  # int4
+                            w1_bytes_per_row = self.hidden_dim * 0.5
+                        elif self.scale_factor > 10:  # int8
+                            w1_bytes_per_row = self.hidden_dim * 1
+                        else:  # float16
+                            w1_bytes_per_row = self.hidden_dim * 2
+                    else:
+                        w1_bytes_per_row = self.hidden_dim * 4  # float32
+                    
                     for i in range(self.dim):
                         if i % 3 == 0:
                             gc.collect()
                         
-                        row_bytes = f.read(w1_bytes_per_row)
-                        if len(row_bytes) != w1_bytes_per_row:
+                        row_bytes = f.read(int(w1_bytes_per_row))
+                        if len(row_bytes) != int(w1_bytes_per_row):
                             print(f"Error reading w1 row {i}")
                             return False
                         
-                        row_floats = struct.unpack(f'{self.hidden_dim}f', row_bytes)
-                        w1_matrix.append(list(row_floats))
+                        # Unpack row based on quantization
+                        if self.quantization == 'quantized':
+                            if self.scale_factor > 100:  # int4
+                                row_ints = struct.unpack(f'{self.hidden_dim}B', row_bytes)
+                                row = [float(val) / self.scale_factor for val in row_ints]
+                            elif self.scale_factor > 10:  # int8
+                                row_ints = struct.unpack(f'{self.hidden_dim}b', row_bytes)
+                                row = [float(val) / self.scale_factor for val in row_ints]
+                            else:  # float16
+                                row_floats = struct.unpack(f'{self.hidden_dim}e', row_bytes)
+                                row = [float(val) for val in row_floats]
+                        else:
+                            row_floats = struct.unpack(f'{self.hidden_dim}f', row_bytes)
+                            row = [float(val) for val in row_floats]
+                        
+                        w1_matrix.append(row)
                     layer['w1'] = w1_matrix
                     
                     print(f"    Loading w2...")
                     # W2: hidden_dim x dim  
                     w2_matrix = []
-                    w2_bytes_per_row = self.dim * 4
+                    
+                    # Determine bytes per row based on quantization
+                    if self.quantization == 'quantized':
+                        if self.scale_factor > 100:  # int4
+                            w2_bytes_per_row = self.dim * 0.5
+                        elif self.scale_factor > 10:  # int8
+                            w2_bytes_per_row = self.dim * 1
+                        else:  # float16
+                            w2_bytes_per_row = self.dim * 2
+                    else:
+                        w2_bytes_per_row = self.dim * 4  # float32
+                    
                     for i in range(self.hidden_dim):
                         if i % 3 == 0:
                             gc.collect()
                         
-                        row_bytes = f.read(w2_bytes_per_row)
-                        if len(row_bytes) != w2_bytes_per_row:
+                        row_bytes = f.read(int(w2_bytes_per_row))
+                        if len(row_bytes) != int(w2_bytes_per_row):
                             print(f"Error reading w2 row {i}")
                             return False
                         
-                        row_floats = struct.unpack(f'{self.dim}f', row_bytes)
-                        w2_matrix.append(list(row_floats))
+                        # Unpack row based on quantization
+                        if self.quantization == 'quantized':
+                            if self.scale_factor > 100:  # int4
+                                row_ints = struct.unpack(f'{self.dim}B', row_bytes)
+                                row = [float(val) / self.scale_factor for val in row_ints]
+                            elif self.scale_factor > 10:  # int8
+                                row_ints = struct.unpack(f'{self.dim}b', row_bytes)
+                                row = [float(val) / self.scale_factor for val in row_ints]
+                            else:  # float16
+                                row_floats = struct.unpack(f'{self.dim}e', row_bytes)
+                                row = [float(val) for val in row_floats]
+                        else:
+                            row_floats = struct.unpack(f'{self.dim}f', row_bytes)
+                            row = [float(val) for val in row_floats]
+                        
+                        w2_matrix.append(row)
                     layer['w2'] = w2_matrix
                     
                     self.layers.append(layer)
                     mem.cleanup()
                 
                 # Final layer norm
-                final_ln_bytes = f.read(self.dim * 4)
-                self.final_ln_weight = list(struct.unpack(f'{self.dim}f', final_ln_bytes))
+                if self.quantization == 'quantized':
+                    if self.scale_factor > 100:  # int4
+                        final_ln_bytes = f.read(self.dim * 0.5)
+                        final_ln_ints = struct.unpack(f'{self.dim}B', final_ln_bytes)
+                        self.final_ln_weight = [float(val) / self.scale_factor for val in final_ln_ints]
+                    elif self.scale_factor > 10:  # int8
+                        final_ln_bytes = f.read(self.dim * 1)
+                        final_ln_ints = struct.unpack(f'{self.dim}b', final_ln_bytes)
+                        self.final_ln_weight = [float(val) / self.scale_factor for val in final_ln_ints]
+                    else:  # float16
+                        final_ln_bytes = f.read(self.dim * 2)
+                        final_ln_floats = struct.unpack(f'{self.dim}e', final_ln_bytes)
+                        self.final_ln_weight = list(final_ln_floats)
+                else:
+                    final_ln_bytes = f.read(self.dim * 4)
+                    final_ln_floats = struct.unpack(f'{self.dim}f', final_ln_bytes)
+                    self.final_ln_weight = list(final_ln_floats)
                 
                 print("✅ Model loaded successfully!")
                 mem.check("After full model load")
@@ -771,7 +935,8 @@ class ModelDetector:
         if not self.available_models:
             print("❌ No model files found!")
             print(f"Expected either:")
-            print(f"  New structure: {MODELS_DIR}/[model-name]/model_[params]p.bin")
+            print(f"  New structure: {MODELS_DIR}/[model-name]/model_[params]p[quant].bin")
+            print(f"  Examples: model_1024p.bin, model_1024p_float16.bin, model_1024p_int8.bin")
             print(f"  Legacy structure: model_[name].bin and vocab_[name].bin")
         else:
             print(f"✅ Found {len(self.available_models)} models")
@@ -799,40 +964,62 @@ class ModelDetector:
                     # If we can list files, it's a directory
                     print(f"  Checking folder: {item}")
                     
-                    # Look for model files in this folder
+                    # Look for model files in this folder (support both old and quantized formats)
                     model_files = [f for f in files if f.startswith("model_") and f.endswith(".bin")]
                     
                     if model_files:
-                        # Extract parameter count from filename
+                        # Extract parameter count from filename (handle quantization suffixes)
                         model_file = model_files[0]  # Should be only one
                         param_str = model_file[6:-4]  # Remove "model_" prefix and ".bin" suffix
+                        
+                        # Handle quantization suffixes: model_2012p_float16.bin -> 2012p
+                        if '_' in param_str:
+                            param_str = param_str.split('_')[0]  # Take first part before underscore
                         
                         if param_str.endswith('p'):
                             try:
                                 param_count = int(param_str[:-1])
                                 
                                 # Check if all required files exist by trying to open them
-                                vocab_file = f"vocab_{param_count}p.bin"
-                                config_file = f"config_{param_count}p.json"
+                                # For quantized models, we need to check multiple possible filenames
+                                vocab_file = None
+                                config_file = None
                                 
-                                vocab_exists = False
-                                config_exists = False
+                                # Try to find vocab file (with or without quantization suffix)
+                                possible_vocab_files = [
+                                    f"vocab_{param_count}p.bin",  # Standard naming
+                                    f"vocab_{param_count}p_float16.bin",  # Quantized naming
+                                    f"vocab_{param_count}p_int8.bin",
+                                    f"vocab_{param_count}p_int4.bin"
+                                ]
                                 
-                                # Check if vocab file exists
-                                try:
-                                    with open(f"{folder_path}/{vocab_file}", 'rb') as f:
-                                        f.read(2)  # Try to read vocab size
-                                    vocab_exists = True
-                                except:
-                                    pass
+                                for vocab_candidate in possible_vocab_files:
+                                    try:
+                                        with open(f"{folder_path}/{vocab_candidate}", 'rb') as f:
+                                            f.read(2)  # Try to read vocab size
+                                        vocab_file = vocab_candidate
+                                        vocab_exists = True
+                                        break
+                                    except:
+                                        continue
                                 
-                                # Check if config file exists
-                                try:
-                                    with open(f"{folder_path}/{config_file}", 'r') as f:
-                                        f.read(1)  # Try to read first character
-                                    config_exists = True
-                                except:
-                                    pass
+                                # Try to find config file (with or without quantization suffix)
+                                possible_config_files = [
+                                    f"config_{param_count}p.json",  # Standard naming
+                                    f"config_{param_count}p_float16.json",  # Quantized naming
+                                    f"config_{param_count}p_int8.json",
+                                    f"config_{param_count}p_int4.json"
+                                ]
+                                
+                                for config_candidate in possible_config_files:
+                                    try:
+                                        with open(f"{folder_path}/{config_candidate}", 'r') as f:
+                                            f.read(1)  # Try to read first character
+                                        config_exists = True
+                                        config_file = config_candidate
+                                        break
+                                    except:
+                                        continue
                                 
                                 if vocab_exists and config_exists:
                                     # Generate description based on folder name and params
@@ -849,7 +1036,16 @@ class ModelDetector:
                                         'type': 'folder'
                                     })
                                     
-                                    print(f"    ✅ Found model: {param_count:,} params - {description}")
+                                    # Check for quantization info in filename
+                                    quant_info = ""
+                                    if "_float16" in model_file:
+                                        quant_info = " (16-bit quantized)"
+                                    elif "_int8" in model_file:
+                                        quant_info = " (8-bit quantized)"
+                                    elif "_int4" in model_file:
+                                        quant_info = " (4-bit quantized)"
+                                    
+                                    print(f"    ✅ Found model: {param_count:,} params - {description}{quant_info}")
                                 else:
                                     missing = []
                                     if not vocab_exists:
@@ -1155,7 +1351,17 @@ class ScalableInference:
                 if model_info:
                     param_str = f"{model_info['params']//1000}K" if model_info['params'] >= 1000 else str(model_info['params'])
                     model_type = model_info['type'][:7]  # Truncate to fit column
-                    print(f"{name:15s} {model_type:8s} {param_str:8s} ✅      {memory_kb:5d}KB {speed:8.1f} tok/s")
+                    
+                    # Add quantization info
+                    quant_info = ""
+                    if "_float16" in model_info['model_file']:
+                        quant_info = " (16-bit)"
+                    elif "_int8" in model_info['model_file']:
+                        quant_info = " (8-bit)"
+                    elif "_int4" in model_info['model_file']:
+                        quant_info = " (4-bit)"
+                    
+                    print(f"{name:15s} {model_type:8s} {param_str:8s} ✅      {memory_kb:5d}KB {speed:8.1f} tok/s{quant_info}")
                 else:
                     print(f"{name:15s} {'unknown':8s} {'unknown':8s} ✅      {memory_kb:5d}KB {speed:8.1f} tok/s")
             else:
@@ -1367,7 +1573,17 @@ class ScalableInference:
             for model in sorted(folder_models, key=lambda x: x['params']):
                 param_str = f"{model['params']//1000}K" if model['params'] >= 1000 else str(model['params'])
                 desc = model['description'][:37] + "..." if len(model['description']) > 40 else model['description']
-                print(f"{model['name']:15s} {model['folder']:20s} {param_str:8s} {desc:40s}")
+                
+                # Add quantization info if available
+                quant_suffix = ""
+                if "_float16" in model['model_file']:
+                    quant_suffix = " (16-bit)"
+                elif "_int8" in model['model_file']:
+                    quant_suffix = " (8-bit)"
+                elif "_int4" in model['model_file']:
+                    quant_suffix = " (4-bit)"
+                
+                print(f"{model['name']:15s} {model['folder']:20s} {param_str:8s} {desc:40s}{quant_suffix}")
         
         if legacy_models:
             print(f"\n📄 Legacy models ({len(legacy_models)}):")
@@ -1416,6 +1632,7 @@ class ScalableInference:
         print(f"  - No pre-configuration needed")
         print(f"  - Just add model folders to {MODELS_DIR}/")
         print(f"  - Supports both folder and legacy structures")
+        print(f"  - Supports quantized models (float16, int8, int4)")
         print(f"  - CircuitPython 3.4.0+ compatible")
 
 def main():
@@ -1467,6 +1684,11 @@ def main():
         
         if not inference.detector.available_models:
             print("❌ No models found! Please add model folders to the models/ directory.")
+            print("Supported formats:")
+            print("  - model_1024p.bin (standard)")
+            print("  - model_1024p_float16.bin (16-bit quantized)")
+            print("  - model_1024p_int8.bin (8-bit quantized)")
+            print("  - model_1024p_int4.bin (4-bit quantized)")
             return
         
         # Simple CircuitPython interface

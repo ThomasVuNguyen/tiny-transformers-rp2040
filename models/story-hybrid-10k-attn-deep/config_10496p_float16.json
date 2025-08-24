@@ -1,0 +1,10 @@
+{
+  "vocab_size": 512,
+  "dim": 8,
+  "hidden_dim": 64,
+  "n_layers": 5,
+  "n_heads": 8,
+  "max_seq_len": 52,
+  "description": "10.0K parameters - ULTRA HYBRID (8d + 8 heads + 5 layers)",
+  "quantization": "float16"
+}

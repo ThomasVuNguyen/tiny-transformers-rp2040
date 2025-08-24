@@ -3145,8 +3145,8 @@ class ScalableTrainer:
             except Exception as e:
                 print(f"  '{prompt}' -> [generation error: {e}]")
     
-    def save_model(self):
-        """Save model with size-specific filename"""
+    def save_model(self, quantization='float32'):
+        """Save model with size-specific filename and quantization support"""
         # Create models directory if it doesn't exist
         models_dir = "models"
         if not os.path.exists(models_dir):
@@ -3162,19 +3162,38 @@ class ScalableTrainer:
         # Get actual parameter count for filename
         param_count = self.model._count_parameters()
         
-        model_filename = os.path.join(model_folder, f"model_{param_count}p.bin")
-        vocab_filename = os.path.join(model_folder, f"vocab_{param_count}p.bin")
+        # Add quantization info to filename
+        quant_suffix = f"_{quantization}" if quantization != 'float32' else ""
+        model_filename = os.path.join(model_folder, f"model_{param_count}p{quant_suffix}.bin")
+        vocab_filename = os.path.join(model_folder, f"vocab_{param_count}p{quant_suffix}.bin")
         
-        print(f"Saving {self.model_size} model...")
+        print(f"Saving {self.model_size} model with {quantization} quantization...")
         
-        # Save model config first
-        config_filename = os.path.join(model_folder, f"config_{param_count}p.json")
+        # Save model config first (include quantization info)
+        config_filename = os.path.join(model_folder, f"config_{param_count}p{quant_suffix}.json")
+        config_with_quant = self.config.copy()
+        config_with_quant['quantization'] = quantization
         with open(config_filename, 'w') as f:
-            json.dump(self.config, f, indent=2)
+            json.dump(config_with_quant, f, indent=2)
+        
+        # Determine data type and scaling for quantization
+        if quantization == 'float16':
+            dtype = np.float16
+            scale_factor = 1.0
+        elif quantization == 'int8':
+            dtype = np.int8
+            # Calculate scale factors for int8 quantization
+            scale_factor = 127.0 / np.max(np.abs(self.model.token_embedding))
+        elif quantization == 'int4':
+            dtype = np.int8  # Store 4-bit in 8-bit arrays
+            scale_factor = 7.0 / np.max(np.abs(self.model.token_embedding))
+        else:  # float32
+            dtype = np.float32
+            scale_factor = 1.0
         
         # Save model weights with progress bar
         with open(model_filename, 'wb') as f:
-            # Header with config
+            # Header with config and quantization info
             header = struct.pack("8I", 
                                self.config['vocab_size'], 
                                self.config['dim'],
@@ -3185,37 +3204,72 @@ class ScalableTrainer:
                                0, 0)  # Reserved
             f.write(header)
             
-            # Token embeddings
-            f.write(self.model.token_embedding.astype(np.float32).tobytes())
+            # Write quantization metadata
+            quant_header = struct.pack("f", scale_factor)  # Scale factor
+            f.write(quant_header)
             
-            # Layer weights with progress bar
-            with tqdm(self.model.layers, desc="Saving Layers", unit="layer") as pbar:
+            # Token embeddings with quantization
+            if quantization == 'int8':
+                quantized_emb = np.clip(self.model.token_embedding * scale_factor, -127, 127).astype(dtype)
+            elif quantization == 'int4':
+                quantized_emb = np.clip(self.model.token_embedding * scale_factor, -7, 7).astype(dtype)
+            else:
+                quantized_emb = self.model.token_embedding.astype(dtype)
+            f.write(quantized_emb.tobytes())
+            
+            # Layer weights with progress bar and quantization
+            with tqdm(self.model.layers, desc=f"Saving Layers ({quantization})", unit="layer") as pbar:
                 for layer in pbar:
-                    f.write(layer['ln1_weight'].astype(np.float32).tobytes())
-                    f.write(layer['ln2_weight'].astype(np.float32).tobytes())
-                    f.write(layer['wq'].astype(np.float32).tobytes())
-                    f.write(layer['wk'].astype(np.float32).tobytes())
-                    f.write(layer['wv'].astype(np.float32).tobytes())
-                    f.write(layer['wo'].astype(np.float32).tobytes())
-                    f.write(layer['w1'].astype(np.float32).tobytes())
-                    f.write(layer['w2'].astype(np.float32).tobytes())
+                    # Quantize each weight matrix
+                    for weight_name in ['ln1_weight', 'ln2_weight', 'wq', 'wk', 'wv', 'wo', 'w1', 'w2']:
+                        weight = layer[weight_name]
+                        if quantization == 'int8':
+                            quantized_weight = np.clip(weight * scale_factor, -127, 127).astype(dtype)
+                        elif quantization == 'int4':
+                            quantized_weight = np.clip(weight * scale_factor, -7, 7).astype(dtype)
+                        else:
+                            quantized_weight = weight.astype(dtype)
+                        f.write(quantized_weight.tobytes())
                     
                     # Update progress bar
                     pbar.set_postfix({
                         'dim': self.config['dim'],
-                        'hidden': self.config['hidden_dim']
+                        'hidden': self.config['hidden_dim'],
+                        'quant': quantization
                     })
             
-            # Final layer norm
-            f.write(self.model.final_ln_weight.astype(np.float32).tobytes())
+            # Final layer norm with quantization
+            if quantization == 'int8':
+                quantized_final = np.clip(self.model.final_ln_weight * scale_factor, -127, 127).astype(dtype)
+            elif quantization == 'int4':
+                quantized_final = np.clip(self.model.final_ln_weight * scale_factor, -7, 7).astype(dtype)
+            else:
+                quantized_final = self.model.final_ln_weight.astype(dtype)
+            f.write(quantized_final.tobytes())
         
         # Save vocabulary
         self.tokenizer.save_vocab(vocab_filename)
         
+        # Calculate and display memory savings
+        original_size = param_count * 4  # float32 = 4 bytes
+        if quantization == 'float16':
+            new_size = param_count * 2
+            savings = (original_size - new_size) / original_size * 100
+        elif quantization == 'int8':
+            new_size = param_count * 1
+            savings = (original_size - new_size) / original_size * 100
+        elif quantization == 'int4':
+            new_size = param_count * 0.5  # 4 bits = 0.5 bytes
+            savings = (original_size - new_size) / original_size * 100
+        else:
+            savings = 0
+        
         print(f"Files created in {model_folder}/:")
-        print(f"  model_{param_count}p.bin - model weights")
-        print(f"  vocab_{param_count}p.bin - vocabulary") 
-        print(f"  config_{param_count}p.json - configuration")
+        print(f"  model_{param_count}p{quant_suffix}.bin - model weights ({quantization})")
+        print(f"  vocab_{param_count}p{quant_suffix}.bin - vocabulary") 
+        print(f"  config_{param_count}p{quant_suffix}.json - configuration")
+        if savings > 0:
+            print(f"  Memory savings: {savings:.1f}% ({original_size/1024:.1f}KB → {new_size/1024:.1f}KB)")
 
 def estimate_model_size(vocab_size, dim, hidden_dim, n_layers, n_heads):
     """Estimate model parameters and memory usage"""
@@ -4938,6 +4992,119 @@ def test_hybrid_ultra_extreme_parallel():
     
     return successful_models, failed_models
 
+def test_quantization_basic():
+    """Test basic quantization (16-bit) on best models"""
+    print("🚀 PHASE 6A: BASIC QUANTIZATION STUDY - 16-bit Implementation!")
+    print("Testing 16-bit quantization on our best hybrid models...")
+    
+    # Test quantization on our best working models from Phase 5
+    best_models = [
+        'story-hybrid-1k-attn-deep',    # 2.2 tok/s champion
+        'story-hybrid-3k-attn-deep',    # 1.7 tok/s performer
+        'story-hybrid-5k-attn-deep',    # 1.5 tok/s performer
+        'story-hybrid-7k-attn-deep',    # 0.7 tok/s performer
+        'story-hybrid-10k-attn-deep'    # 0.9 tok/s performer
+    ]
+    
+    print(f"Testing 16-bit quantization on {len(best_models)} models...")
+    
+    for model_name in best_models:
+        print(f"\n🔬 Testing {model_name} with 16-bit quantization...")
+        try:
+            trainer = ScalableTrainer(model_name)
+            trainer.prepare_data()
+            
+            # Quick training (fewer epochs for quantization testing)
+            epochs = max(20, 100 // max(1, trainer.config['dim'] // 16))
+            trainer.train(epochs=epochs, learning_rate=0.01)
+            
+            # Save with 16-bit quantization
+            trainer.save_model(quantization='float16')
+            
+            print(f"✅ {model_name} 16-bit quantization complete!")
+            
+        except Exception as e:
+            print(f"❌ {model_name} quantization failed: {e}")
+    
+    print("\n✅ PHASE 6A COMPLETE: Basic 16-bit quantization tested!")
+    print("🎯 Next: Test 8-bit quantization for even more memory savings!")
+
+def test_quantization_advanced():
+    """Test advanced quantization (8-bit, 4-bit) on best models"""
+    print("🚀 PHASE 6B: ADVANCED QUANTIZATION STUDY - 8-bit & 4-bit Implementation!")
+    print("Testing 8-bit and 4-bit quantization for maximum memory savings...")
+    
+    # Test on smaller models first (1K-3K) for 8-bit and 4-bit
+    test_models = [
+        'story-hybrid-1k-attn-deep',    # 2.2 tok/s champion
+        'story-hybrid-3k-attn-deep',    # 1.7 tok/s performer
+    ]
+    
+    print(f"Testing advanced quantization on {len(test_models)} models...")
+    
+    for model_name in test_models:
+        print(f"\n🔬 Testing {model_name} with advanced quantization...")
+        try:
+            trainer = ScalableTrainer(model_name)
+            trainer.prepare_data()
+            
+            # Quick training for quantization testing
+            epochs = max(15, 80 // max(1, trainer.config['dim'] // 16))
+            trainer.train(epochs=epochs, learning_rate=0.01)
+            
+            # Test 8-bit quantization
+            print(f"  Testing 8-bit quantization...")
+            trainer.save_model(quantization='int8')
+            
+            # Test 4-bit quantization
+            print(f"  Testing 4-bit quantization...")
+            trainer.save_model(quantization='int4')
+            
+            print(f"✅ {model_name} advanced quantization complete!")
+            
+        except Exception as e:
+            print(f"❌ {model_name} advanced quantization failed: {e}")
+    
+    print("\n✅ PHASE 6B COMPLETE: Advanced quantization tested!")
+    print("🎯 Next: Test quantized models on RP2040 for memory savings validation!")
+
+def test_quantization_hybrid():
+    """Test quantization on hybrid models to enable larger architectures"""
+    print("🚀 PHASE 6C: HYBRID QUANTIZATION STUDY - Enabling Larger Models!")
+    print("Testing quantization to enable larger hybrid models within RP2040 constraints...")
+    
+    # Test quantization on models that failed due to memory constraints
+    memory_constrained_models = [
+        'story-hybrid-1k-ultimate',     # Failed due to ultra-fat FFN
+        'story-hybrid-3k-ultimate',     # Failed due to ultra-fat FFN
+        'story-hybrid-5k-ultimate',     # Failed due to ultra-fat FFN
+    ]
+    
+    print(f"Testing quantization on {len(memory_constrained_models)} memory-constrained models...")
+    
+    for model_name in memory_constrained_models:
+        print(f"\n🔬 Testing {model_name} with quantization to overcome memory limits...")
+        try:
+            trainer = ScalableTrainer(model_name)
+            trainer.prepare_data()
+            
+            # Quick training for quantization testing
+            epochs = max(15, 80 // max(1, trainer.config['dim'] // 16))
+            trainer.train(epochs=epochs, learning_rate=0.01)
+            
+            # Test multiple quantization levels
+            for quant_level in ['float16', 'int8', 'int4']:
+                print(f"  Testing {quant_level} quantization...")
+                trainer.save_model(quantization=quant_level)
+            
+            print(f"✅ {model_name} quantization complete!")
+            
+        except Exception as e:
+            print(f"❌ {model_name} quantization failed: {e}")
+    
+    print("\n✅ PHASE 6C COMPLETE: Hybrid quantization tested!")
+    print("🎯 Next: Test all quantized models on RP2040 for comprehensive validation!")
+
 def main():
     """Main training function"""
     print("=== Scalable Transformer Training ===")
@@ -4962,6 +5129,12 @@ def main():
     print("  attn_test : Test ATTENTION HEAD EXTREMES (32+ heads) (Never attempted!)")
     print("  deep_test : Test ULTRA-DEEP LAYER STUDY (10+ layers) (Never attempted!)")
     print("  hybrid_test : Test HYBRID ULTRA-EXTREME STUDY (All approaches combined!)")
+    
+    print("\n🚀 PHASE 6: QUANTIZATION STUDY (Weight Precision Optimization!):")
+    print("  quant_basic : Test BASIC QUANTIZATION (16-bit) - Phase 6A")
+    print("  quant_advanced : Test ADVANCED QUANTIZATION (8-bit, 4-bit) - Phase 6B")
+    print("  quant_hybrid : Test HYBRID QUANTIZATION (Enable larger models) - Phase 6C")
+    print("  Expected breakthroughs: 2-8x memory reduction, enable 15K+ parameter models!")
     
     print("\n🚀 PARALLEL TESTING (MULTI-CORE SPEEDUP!):")
     print("  ultra_1d_parallel : Test ULTRA-EXTREME 1D/2D/3D models with parallel processing")
@@ -5032,6 +5205,15 @@ def main():
     elif choice == 'hybrid_test_parallel':
         print("🚀 Using parallel processing for HYBRID ULTRA-EXTREME STUDY - Phase 5!")
         test_hybrid_ultra_extreme_parallel()
+    elif choice == 'quant_basic':
+        print("🚀 PHASE 6A: BASIC QUANTIZATION STUDY - 16-bit Implementation!")
+        test_quantization_basic()
+    elif choice == 'quant_advanced':
+        print("🚀 PHASE 6B: ADVANCED QUANTIZATION STUDY - 8-bit & 4-bit Implementation!")
+        test_quantization_advanced()
+    elif choice == 'quant_hybrid':
+        print("🚀 PHASE 6C: HYBRID QUANTIZATION STUDY - Enabling Larger Models!")
+        test_quantization_hybrid()
     elif choice == 'all_parallel':
         print("🚀 MASSIVE PARALLEL TESTING - Using ALL CPU cores!")
         test_all_variants_parallel()

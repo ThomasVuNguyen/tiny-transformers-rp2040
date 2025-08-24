@@ -1,0 +1,9 @@
+{
+  "vocab_size": 256,
+  "dim": 6,
+  "hidden_dim": 384,
+  "n_layers": 6,
+  "n_heads": 12,
+  "max_seq_len": 44,
+  "description": "7.0K parameters - TRIPLE HYBRID (6d + 64x FFN + 12 heads + 6 layers)"
+}

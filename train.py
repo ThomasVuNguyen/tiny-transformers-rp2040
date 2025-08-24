@@ -4892,7 +4892,7 @@ def test_hybrid_ultra_extreme_parallel():
     args_list = []
     for model_name in hybrid_models:
         if model_name in MODEL_CONFIGS:
-            args_list.append((model_name, 30))  # 30 epochs for faster testing
+            args_list.append((model_name, 30, 0.01))  # 30 epochs, 0.01 learning rate
     
     # Execute parallel training
     successful_models = []

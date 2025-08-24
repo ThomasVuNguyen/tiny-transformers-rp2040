@@ -1,0 +1,9 @@
+{
+  "vocab_size": 64,
+  "dim": 2,
+  "hidden_dim": 512,
+  "n_layers": 10,
+  "n_heads": 2,
+  "max_seq_len": 36,
+  "description": "3.0K parameters - ULTRA HYBRID (2d + 256x FFN + 10 layers)"
+}

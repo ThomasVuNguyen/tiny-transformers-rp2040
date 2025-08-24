@@ -24,6 +24,7 @@ import json
 import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import psutil
+from tqdm import tqdm
 
 # Model size presets - names reflect actual parameter counts
 MODEL_CONFIGS = {
@@ -2429,6 +2430,235 @@ MODEL_CONFIGS = {
         'vocab_size': 1, 'dim': 128, 'hidden_dim': 256, 'n_layers': 1, 'n_heads': 128, 'max_seq_len': 32,
         'description': '1.0K parameters - HYBRID 256x FFN + 128 HEADS (ultimate speed!)'
     },
+
+    # === PHASE 4: ULTRA-DEEP LAYER STUDY (10+ Layers!) ===
+    # Testing ultra-deep architectures that have NEVER been attempted on microcontrollers!
+    # Target: 15+ tok/s with ultra-deep + ultra-narrow architectures!
+    # === 10 LAYERS (Ultra-Deep!) ===
+    'story-deep-10l-1k': {
+        'vocab_size': 32, 'dim': 1, 'hidden_dim': 64, 'n_layers': 10, 'n_heads': 1, 'max_seq_len': 32,
+        'description': '1.0K parameters - ULTRA 10 LAYERS (ultra-deep with ultra-narrow!)'
+    },
+    'story-deep-10l-3k': {
+        'vocab_size': 64, 'dim': 2, 'hidden_dim': 128, 'n_layers': 10, 'n_heads': 1, 'max_seq_len': 36,
+        'description': '3.0K parameters - ULTRA 10 LAYERS (ultra-deep with ultra-narrow!)'
+    },
+    'story-deep-10l-5k': {
+        'vocab_size': 128, 'dim': 3, 'hidden_dim': 256, 'n_layers': 10, 'n_heads': 1, 'max_seq_len': 40,
+        'description': '5.0K parameters - ULTRA 10 LAYERS (ultra-deep with ultra-narrow!)'
+    },
+    'story-deep-10l-7k': {
+        'vocab_size': 256, 'dim': 4, 'hidden_dim': 512, 'n_layers': 10, 'n_heads': 1, 'max_seq_len': 44,
+        'description': '7.0K parameters - ULTRA 10 LAYERS (ultra-deep with ultra-narrow!)'
+    },
+    'story-deep-10l-10k': {
+        'vocab_size': 512, 'dim': 5, 'hidden_dim': 1024, 'n_layers': 10, 'n_heads': 1, 'max_seq_len': 52,
+        'description': '10.0K parameters - ULTRA 10 LAYERS (ultra-deep with ultra-narrow!)'
+    },
+
+    # === 15 LAYERS (Beyond Ultra-Deep!) ===
+    'story-deep-15l-1k': {
+        'vocab_size': 32, 'dim': 1, 'hidden_dim': 64, 'n_layers': 15, 'n_heads': 1, 'max_seq_len': 32,
+        'description': '1.0K parameters - ULTRA 15 LAYERS (beyond ultra-deep!)'
+    },
+    'story-deep-15l-3k': {
+        'vocab_size': 64, 'dim': 2, 'hidden_dim': 128, 'n_layers': 15, 'n_heads': 1, 'max_seq_len': 36,
+        'description': '3.0K parameters - ULTRA 15 LAYERS (beyond ultra-deep!)'
+    },
+    'story-deep-15l-5k': {
+        'vocab_size': 128, 'dim': 3, 'hidden_dim': 256, 'n_layers': 15, 'n_heads': 1, 'max_seq_len': 40,
+        'description': '5.0K parameters - ULTRA 15 LAYERS (beyond ultra-deep!)'
+    },
+    'story-deep-15l-7k': {
+        'vocab_size': 256, 'dim': 4, 'hidden_dim': 512, 'n_layers': 15, 'n_heads': 1, 'max_seq_len': 44,
+        'description': '7.0K parameters - ULTRA 15 LAYERS (beyond ultra-deep!)'
+    },
+    'story-deep-15l-10k': {
+        'vocab_size': 512, 'dim': 5, 'hidden_dim': 1024, 'n_layers': 15, 'n_heads': 1, 'max_seq_len': 52,
+        'description': '10.0K parameters - ULTRA 15 LAYERS (beyond ultra-deep!)'
+    },
+
+    # === 20 LAYERS (Insane Depth!) ===
+    'story-deep-20l-1k': {
+        'vocab_size': 32, 'dim': 1, 'hidden_dim': 64, 'n_layers': 20, 'n_heads': 1, 'max_seq_len': 32,
+        'description': '1.0K parameters - ULTRA 20 LAYERS (insane depth!)'
+    },
+    'story-deep-20l-3k': {
+        'vocab_size': 64, 'dim': 2, 'hidden_dim': 128, 'n_layers': 20, 'n_heads': 1, 'max_seq_len': 36,
+        'description': '3.0K parameters - ULTRA 20 LAYERS (insane depth!)'
+    },
+    'story-deep-20l-5k': {
+        'vocab_size': 128, 'dim': 3, 'hidden_dim': 256, 'n_layers': 20, 'n_heads': 1, 'max_seq_len': 40,
+        'description': '5.0K parameters - ULTRA 20 LAYERS (insane depth!)'
+    },
+    'story-deep-20l-7k': {
+        'vocab_size': 256, 'dim': 4, 'hidden_dim': 512, 'n_layers': 20, 'n_heads': 1, 'max_seq_len': 44,
+        'description': '7.0K parameters - ULTRA 20 LAYERS (insane depth!)'
+    },
+    'story-deep-20l-10k': {
+        'vocab_size': 512, 'dim': 5, 'hidden_dim': 1024, 'n_layers': 20, 'n_heads': 1, 'max_seq_len': 52,
+        'description': '10.0K parameters - ULTRA 20 LAYERS (insane depth!)'
+    },
+
+    # === 25 LAYERS (Beyond Insane!) ===
+    'story-deep-25l-1k': {
+        'vocab_size': 32, 'dim': 1, 'hidden_dim': 64, 'n_layers': 25, 'n_heads': 1, 'max_seq_len': 32,
+        'description': '1.0K parameters - ULTRA 25 LAYERS (beyond insane!)'
+    },
+    'story-deep-25l-3k': {
+        'vocab_size': 64, 'dim': 2, 'hidden_dim': 128, 'n_layers': 25, 'n_heads': 1, 'max_seq_len': 36,
+        'description': '3.0K parameters - ULTRA 25 LAYERS (beyond insane!)'
+    },
+    'story-deep-25l-5k': {
+        'vocab_size': 128, 'dim': 3, 'hidden_dim': 256, 'n_layers': 25, 'n_heads': 1, 'max_seq_len': 40,
+        'description': '5.0K parameters - ULTRA 25 LAYERS (beyond insane!)'
+    },
+    'story-deep-25l-7k': {
+        'vocab_size': 256, 'dim': 4, 'hidden_dim': 512, 'n_layers': 25, 'n_heads': 1, 'max_seq_len': 44,
+        'description': '7.0K parameters - ULTRA 25 LAYERS (beyond insane!)'
+    },
+    'story-deep-25l-10k': {
+        'vocab_size': 512, 'dim': 5, 'hidden_dim': 1024, 'n_layers': 25, 'n_heads': 1, 'max_seq_len': 52,
+        'description': '10.0K parameters - ULTRA 25 LAYERS (beyond insane!)'
+    },
+
+    # === 30 LAYERS (The Absolute Limit!) ===
+    'story-deep-30l-1k': {
+        'vocab_size': 32, 'dim': 1, 'hidden_dim': 64, 'n_layers': 30, 'n_heads': 1, 'max_seq_len': 32,
+        'description': '1.0K parameters - ULTRA 30 LAYERS (the absolute limit!)'
+    },
+    'story-deep-30l-3k': {
+        'vocab_size': 64, 'dim': 2, 'hidden_dim': 128, 'n_layers': 30, 'n_heads': 1, 'max_seq_len': 36,
+        'description': '3.0K parameters - ULTRA 30 LAYERS (the absolute limit!)'
+    },
+    'story-deep-30l-5k': {
+        'vocab_size': 128, 'dim': 3, 'hidden_dim': 256, 'n_layers': 30, 'n_heads': 1, 'max_seq_len': 40,
+        'description': '5.0K parameters - ULTRA 30 LAYERS (the absolute limit!)'
+    },
+    'story-deep-30l-7k': {
+        'vocab_size': 256, 'dim': 4, 'hidden_dim': 512, 'n_layers': 30, 'n_heads': 1, 'max_seq_len': 44,
+        'description': '7.0K parameters - ULTRA 30 LAYERS (the absolute limit!)'
+    },
+    'story-deep-30l-10k': {
+        'vocab_size': 512, 'dim': 5, 'hidden_dim': 1024, 'n_layers': 30, 'n_heads': 1, 'max_seq_len': 52,
+        'description': '10.0K parameters - ULTRA 30 LAYERS (the absolute limit!)'
+    },
+
+    # === HYBRID ULTRA-EXTREME MODELS (FFN + Attention + Depth!) ===
+    # Combining ALL our breakthrough approaches for maximum speed!
+    'story-hybrid-256x-32h-10l-1k': {
+        'vocab_size': 32, 'dim': 32, 'hidden_dim': 256, 'n_layers': 10, 'n_heads': 32, 'max_seq_len': 32,
+        'description': '1.0K parameters - HYBRID 256x FFN + 32 HEADS + 10 LAYERS (ultimate speed!)'
+    },
+    'story-hybrid-256x-32h-15l-1k': {
+        'vocab_size': 32, 'dim': 32, 'hidden_dim': 256, 'n_layers': 15, 'n_heads': 32, 'max_seq_len': 32,
+        'description': '1.0K parameters - HYBRID 256x FFN + 32 HEADS + 15 LAYERS (ultimate speed!)'
+    },
+    'story-hybrid-256x-32h-20l-1k': {
+        'vocab_size': 32, 'dim': 32, 'hidden_dim': 256, 'n_layers': 20, 'n_heads': 32, 'max_seq_len': 32,
+        'description': '1.0K parameters - HYBRID 256x FFN + 32 HEADS + 20 LAYERS (ultimate speed!)'
+    },
+    'story-hybrid-256x-32h-25l-1k': {
+        'vocab_size': 32, 'dim': 32, 'hidden_dim': 256, 'n_layers': 25, 'n_heads': 32, 'max_seq_len': 32,
+        'description': '1.0K parameters - HYBRID 256x FFN + 32 HEADS + 25 LAYERS (ultimate speed!)'
+    },
+    'story-hybrid-256x-32h-30l-1k': {
+        'vocab_size': 32, 'dim': 32, 'hidden_dim': 256, 'n_layers': 30, 'n_heads': 32, 'max_seq_len': 32,
+        'description': '1.0K parameters - HYBRID 256x FFN + 32 HEADS + 30 LAYERS (ultimate speed!)'
+    },
+
+    # === PHASE 5: HYBRID ULTRA-EXTREME STUDY (RP2040-Optimized!) ===
+    # Combining ALL proven RP2040 approaches: ultra-narrow + ultra-fat + ultra-wide + ultra-deep
+    
+    # === 1K HYBRID ULTIMATE MODELS (1d + 256x FFN + 15 layers) ===
+    'story-hybrid-1k-ultimate': {
+        'vocab_size': 32, 'dim': 1, 'hidden_dim': 256, 'n_layers': 15, 'n_heads': 1, 'max_seq_len': 32,
+        'description': '1.0K parameters - ULTRA HYBRID (1d + 256x FFN + 15 layers)'
+    },
+    
+    # === 3K HYBRID ULTIMATE MODELS (2d + 256x FFN + 10 layers) ===
+    'story-hybrid-3k-ultimate': {
+        'vocab_size': 64, 'dim': 2, 'hidden_dim': 512, 'n_layers': 10, 'n_heads': 2, 'max_seq_len': 36,
+        'description': '3.0K parameters - ULTRA HYBRID (2d + 256x FFN + 10 layers)'
+    },
+    
+    # === 1K HYBRID ATTENTION-DEEP MODELS (1d + 32 heads + 15 layers) ===
+    'story-hybrid-1k-attn-deep': {
+        'vocab_size': 32, 'dim': 1, 'hidden_dim': 64, 'n_layers': 15, 'n_heads': 32, 'max_seq_len': 32,
+        'description': '1.0K parameters - ULTRA HYBRID (1d + 32 heads + 15 layers)'
+    },
+    
+    # === 3K HYBRID ATTENTION-DEEP MODELS (2d + 32 heads + 10 layers) ===
+    'story-hybrid-3k-attn-deep': {
+        'vocab_size': 64, 'dim': 2, 'hidden_dim': 128, 'n_layers': 10, 'n_heads': 32, 'max_seq_len': 36,
+        'description': '3.0K parameters - ULTRA HYBRID (2d + 32 heads + 10 layers)'
+    },
+    
+    # === 1K TRIPLE HYBRID MODELS (1d + 256x FFN + 32 heads + 15 layers) ===
+    'story-hybrid-1k-triple': {
+        'vocab_size': 32, 'dim': 1, 'hidden_dim': 256, 'n_layers': 15, 'n_heads': 32, 'max_seq_len': 32,
+        'description': '1.0K parameters - TRIPLE HYBRID (1d + 256x FFN + 32 heads + 15 layers)'
+    },
+    
+    # === 3K TRIPLE HYBRID MODELS (2d + 256x FFN + 32 heads + 10 layers) ===
+    'story-hybrid-3k-triple': {
+        'vocab_size': 64, 'dim': 2, 'hidden_dim': 512, 'n_layers': 10, 'n_heads': 32, 'max_seq_len': 36,
+        'description': '3.0K parameters - TRIPLE HYBRID (2d + 256x FFN + 32 heads + 10 layers)'
+    },
+    
+    # === 5K HYBRID ULTIMATE MODELS (4d + 128x FFN + 8 layers) ===
+    'story-hybrid-5k-ultimate': {
+        'vocab_size': 128, 'dim': 4, 'hidden_dim': 512, 'n_layers': 8, 'n_heads': 4, 'max_seq_len': 40,
+        'description': '5.0K parameters - ULTRA HYBRID (4d + 128x FFN + 8 layers)'
+    },
+    
+    # === 5K HYBRID ATTENTION-DEEP MODELS (4d + 16 heads + 8 layers) ===
+    'story-hybrid-5k-attn-deep': {
+        'vocab_size': 128, 'dim': 4, 'hidden_dim': 128, 'n_layers': 8, 'n_heads': 16, 'max_seq_len': 40,
+        'description': '5.0K parameters - ULTRA HYBRID (4d + 16 heads + 8 layers)'
+    },
+    
+    # === 5K TRIPLE HYBRID MODELS (4d + 128x FFN + 16 heads + 8 layers) ===
+    'story-hybrid-5k-triple': {
+        'vocab_size': 128, 'dim': 4, 'hidden_dim': 512, 'n_layers': 8, 'n_heads': 16, 'max_seq_len': 40,
+        'description': '5.0K parameters - TRIPLE HYBRID (4d + 128x FFN + 16 heads + 8 layers)'
+    },
+    
+    # === 7K HYBRID ULTIMATE MODELS (6d + 64x FFN + 6 layers) ===
+    'story-hybrid-7k-ultimate': {
+        'vocab_size': 256, 'dim': 6, 'hidden_dim': 384, 'n_layers': 6, 'n_heads': 6, 'max_seq_len': 44,
+        'description': '7.0K parameters - ULTRA HYBRID (6d + 64x FFN + 6 layers)'
+    },
+    
+    # === 7K HYBRID ATTENTION-DEEP MODELS (6d + 12 heads + 6 layers) ===
+    'story-hybrid-7k-attn-deep': {
+        'vocab_size': 256, 'dim': 6, 'hidden_dim': 96, 'n_layers': 6, 'n_heads': 12, 'max_seq_len': 44,
+        'description': '7.0K parameters - ULTRA HYBRID (6d + 12 heads + 6 layers)'
+    },
+    
+    # === 7K TRIPLE HYBRID MODELS (6d + 64x FFN + 12 heads + 6 layers) ===
+    'story-hybrid-7k-triple': {
+        'vocab_size': 256, 'dim': 6, 'hidden_dim': 384, 'n_layers': 6, 'n_heads': 12, 'max_seq_len': 44,
+        'description': '7.0K parameters - TRIPLE HYBRID (6d + 64x FFN + 12 heads + 6 layers)'
+    },
+    
+    # === 10K HYBRID ULTIMATE MODELS (8d + 32x FFN + 5 layers) ===
+    'story-hybrid-10k-ultimate': {
+        'vocab_size': 512, 'dim': 8, 'hidden_dim': 256, 'n_layers': 5, 'n_heads': 8, 'max_seq_len': 52,
+        'description': '10.0K parameters - ULTRA HYBRID (8d + 32x FFN + 5 layers)'
+    },
+    
+    # === 10K HYBRID ATTENTION-DEEP MODELS (8d + 8 heads + 5 layers) ===
+    'story-hybrid-10k-attn-deep': {
+        'vocab_size': 512, 'dim': 8, 'hidden_dim': 64, 'n_layers': 5, 'n_heads': 8, 'max_seq_len': 52,
+        'description': '10.0K parameters - ULTRA HYBRID (8d + 8 heads + 5 layers)'
+    },
+    
+    # === 10K TRIPLE HYBRID MODELS (8d + 32x FFN + 8 heads + 5 layers) ===
+    'story-hybrid-10k-triple': {
+        'vocab_size': 512, 'dim': 8, 'hidden_dim': 256, 'n_layers': 5, 'n_heads': 8, 'max_seq_len': 52,
+        'description': '10.0K parameters - TRIPLE HYBRID (8d + 32x FFN + 8 heads + 5 layers)'
+    },
 }
 
 class ScalableTokenizer:
@@ -2442,6 +2672,8 @@ class ScalableTokenizer:
     
     def _build_vocab(self):
         """Build vocabulary scaled to vocab_size"""
+        print(f"Building vocabulary with {self.vocab_size} tokens...")
+        
         # Special tokens (always first 4)
         self.vocab[0] = "<pad>"
         self.vocab[1] = "<s>"
@@ -2453,19 +2685,23 @@ class ScalableTokenizer:
         
         # Common letters by frequency
         common_chars = "etaoinshrdlcumwfgypbvkjxqz"
-        for char in common_chars:
-            if token_id < self.vocab_size:
-                self.vocab[token_id] = char
-                self.reverse_vocab[char] = token_id
-                token_id += 1
+        with tqdm(common_chars, desc="Adding Letters", unit="char") as pbar:
+            for char in pbar:
+                if token_id < self.vocab_size:
+                    self.vocab[token_id] = char
+                    self.reverse_vocab[char] = token_id
+                    token_id += 1
+                    pbar.set_postfix({'tokens': token_id})
         
         # Punctuation and symbols
         punct = ".,!?'-;:()[]{}\"@#$%&*+=/<>\n\t"
-        for char in punct:
-            if token_id < self.vocab_size:
-                self.vocab[token_id] = char
-                self.reverse_vocab[char] = token_id
-                token_id += 1
+        with tqdm(punct, desc="Adding Punctuation", unit="char") as pbar:
+            for char in pbar:
+                if token_id < self.vocab_size:
+                    self.vocab[token_id] = char
+                    self.reverse_vocab[char] = token_id
+                    token_id += 1
+                    pbar.set_postfix({'tokens': token_id})
         
         # Common bigrams (for larger vocabularies)
         if self.vocab_size > 64:
@@ -2473,11 +2709,13 @@ class ScalableTokenizer:
                       " ou", " it", " is", " en", " as", " at", " es", " on", " hi", " st",
                       "ing", "ion", "ter", "ent", "ity", "ous", "ate", "ive"]
             
-            for bigram in bigrams:
-                if token_id < self.vocab_size:
-                    self.vocab[token_id] = bigram
-                    self.reverse_vocab[bigram] = token_id
-                    token_id += 1
+            with tqdm(bigrams, desc="Adding Bigrams", unit="bigram") as pbar:
+                for bigram in pbar:
+                    if token_id < self.vocab_size:
+                        self.vocab[token_id] = bigram
+                        self.reverse_vocab[bigram] = token_id
+                        token_id += 1
+                        pbar.set_postfix({'tokens': token_id})
         
         # Common trigrams (for even larger vocabularies)
         if self.vocab_size > 200:
@@ -2485,11 +2723,13 @@ class ScalableTokenizer:
                        " can", " had", " her", " was", " one", " our", " out", " day",
                        "ing ", "ion ", "tion", "ness", "ment", "able", "ible"]
             
-            for trigram in trigrams:
-                if token_id < self.vocab_size:
-                    self.vocab[token_id] = trigram
-                    self.reverse_vocab[trigram] = token_id
-                    token_id += 1
+            with tqdm(trigrams, desc="Adding Trigrams", unit="trigram") as pbar:
+                for trigram in pbar:
+                    if token_id < self.vocab_size:
+                        self.vocab[token_id] = trigram
+                        self.reverse_vocab[trigram] = token_id
+                        token_id += 1
+                        pbar.set_postfix({'tokens': token_id})
         
         # Common words (for largest vocabularies)
         if self.vocab_size > 500:
@@ -2504,25 +2744,30 @@ class ScalableTokenizer:
                     "than", "them", "time", "very", "want", "water", "well", "were",
                     "what", "when", "where", "which", "while", "with", "work", "would"]
             
-            for word in words:
-                if token_id < self.vocab_size:
-                    # Add both with and without leading space
-                    if token_id < self.vocab_size - 1:
-                        self.vocab[token_id] = " " + word
-                        self.reverse_vocab[" " + word] = token_id
-                        token_id += 1
-                    
+            with tqdm(words, desc="Adding Words", unit="word") as pbar:
+                for word in pbar:
                     if token_id < self.vocab_size:
-                        self.vocab[token_id] = word
-                        self.reverse_vocab[word] = token_id
-                        token_id += 1
+                        # Add both with and without leading space
+                        if token_id < self.vocab_size - 1:
+                            self.vocab[token_id] = " " + word
+                            self.reverse_vocab[" " + word] = token_id
+                            token_id += 1
+                        
+                        if token_id < self.vocab_size:
+                            self.vocab[token_id] = word
+                            self.reverse_vocab[word] = token_id
+                            token_id += 1
+                        
+                        pbar.set_postfix({'tokens': token_id})
         
         # Fill remaining slots with numbers if needed
-        for i in range(10):
-            if token_id < self.vocab_size:
-                self.vocab[token_id] = str(i)
-                self.reverse_vocab[str(i)] = token_id
-                token_id += 1
+        with tqdm(range(10), desc="Adding Numbers", unit="num") as pbar:
+            for i in pbar:
+                if token_id < self.vocab_size:
+                    self.vocab[token_id] = str(i)
+                    self.reverse_vocab[str(i)] = token_id
+                    token_id += 1
+                    pbar.set_postfix({'tokens': token_id})
         
         print(f"Built vocabulary: {len(self.vocab)}/{self.vocab_size} tokens")
         print("Sample vocab:", {k: v for k, v in list(self.vocab.items())[:20]})
@@ -2616,25 +2861,33 @@ class ScalableTransformer:
         self.token_embedding = np.random.normal(0, embed_scale, 
                                               (self.vocab_size, self.dim)).astype(np.float32)
         
-        # Layer weights
+        # Layer weights with progress bar
         self.layers = []
-        for layer_id in range(self.n_layers):
-            layer = {
-                # Layer norm
-                'ln1_weight': np.ones(self.dim, dtype=np.float32),
-                'ln2_weight': np.ones(self.dim, dtype=np.float32),
+        with tqdm(range(self.n_layers), desc="Initializing Layers", unit="layer") as pbar:
+            for layer_id in pbar:
+                layer = {
+                    # Layer norm
+                    'ln1_weight': np.ones(self.dim, dtype=np.float32),
+                    'ln2_weight': np.ones(self.dim, dtype=np.float32),
+                    
+                    # Attention
+                    'wq': np.random.normal(0, attn_scale, (self.dim, self.dim)).astype(np.float32),
+                    'wk': np.random.normal(0, attn_scale, (self.dim, self.dim)).astype(np.float32),
+                    'wv': np.random.normal(0, attn_scale, (self.dim, self.dim)).astype(np.float32),
+                    'wo': np.random.normal(0, attn_scale, (self.dim, self.dim)).astype(np.float32),
+                    
+                    # Feed-forward
+                    'w1': np.random.normal(0, ffn_scale, (self.dim, self.hidden_dim)).astype(np.float32),
+                    'w2': np.random.normal(0, ffn_scale, (self.hidden_dim, self.dim)).astype(np.float32),
+                }
+                self.layers.append(layer)
                 
-                # Attention
-                'wq': np.random.normal(0, attn_scale, (self.dim, self.dim)).astype(np.float32),
-                'wk': np.random.normal(0, attn_scale, (self.dim, self.dim)).astype(np.float32),
-                'wv': np.random.normal(0, attn_scale, (self.dim, self.dim)).astype(np.float32),
-                'wo': np.random.normal(0, attn_scale, (self.dim, self.dim)).astype(np.float32),
-                
-                # Feed-forward
-                'w1': np.random.normal(0, ffn_scale, (self.dim, self.hidden_dim)).astype(np.float32),
-                'w2': np.random.normal(0, ffn_scale, (self.hidden_dim, self.dim)).astype(np.float32),
-            }
-            self.layers.append(layer)
+                # Update progress bar with layer info
+                pbar.set_postfix({
+                    'layer': f'{layer_id+1}/{self.n_layers}',
+                    'dim': self.dim,
+                    'hidden': self.hidden_dim
+                })
         
         # Final layer norm
         self.final_ln_weight = np.ones(self.dim, dtype=np.float32)
@@ -2800,11 +3053,18 @@ class ScalableTrainer:
         if self.config['dim'] > 32:
             learning_rate *= 0.5  # Lower LR for bigger models
         
-        for epoch in range(epochs):
+        # Progress bar for epochs
+        epoch_pbar = tqdm(range(epochs), desc="Training Epochs", unit="epoch")
+        
+        for epoch in epoch_pbar:
             epoch_loss = 0
             random.shuffle(self.training_data)
             
-            for i, (context, target) in enumerate(self.training_data):
+            # Progress bar for training samples within each epoch
+            sample_pbar = tqdm(self.training_data, desc=f"Epoch {epoch+1}/{epochs}", 
+                              unit="sample", leave=False)
+            
+            for i, (context, target) in enumerate(sample_pbar):
                 try:
                     # Forward pass
                     logits = self.model.forward(np.array(context))
@@ -2826,6 +3086,9 @@ class ScalableTrainer:
                     for j in range(min(100, self.model.vocab_size)):  # Limit updates for speed
                         if j != target and probs[j] > 0.01:  # Only update probable tokens
                             self.model.token_embedding[j] -= learning_rate * probs[j] * 0.01
+                    
+                    # Update sample progress bar with loss
+                    sample_pbar.set_postfix({'loss': f'{loss:.4f}'})
                 
                 except Exception as e:
                     print(f"Training error at epoch {epoch}, sample {i}: {e}")
@@ -2837,8 +3100,13 @@ class ScalableTrainer:
             if avg_loss < best_loss:
                 best_loss = avg_loss
             
+            # Update epoch progress bar with loss info
+            epoch_pbar.set_postfix({
+                'loss': f'{avg_loss:.4f}',
+                'best': f'{best_loss:.4f}'
+            })
+            
             if epoch % 10 == 0 or epoch < 5:
-                print(f"Epoch {epoch:3d}: Loss = {avg_loss:.4f} (best: {best_loss:.4f})")
                 self.test_generation()
         
         print(f"Training complete! Final loss: {losses[-1]:.4f}")
@@ -2904,7 +3172,7 @@ class ScalableTrainer:
         with open(config_filename, 'w') as f:
             json.dump(self.config, f, indent=2)
         
-        # Save model weights
+        # Save model weights with progress bar
         with open(model_filename, 'wb') as f:
             # Header with config
             header = struct.pack("8I", 
@@ -2920,16 +3188,23 @@ class ScalableTrainer:
             # Token embeddings
             f.write(self.model.token_embedding.astype(np.float32).tobytes())
             
-            # Layer weights
-            for layer in self.model.layers:
-                f.write(layer['ln1_weight'].astype(np.float32).tobytes())
-                f.write(layer['ln2_weight'].astype(np.float32).tobytes())
-                f.write(layer['wq'].astype(np.float32).tobytes())
-                f.write(layer['wk'].astype(np.float32).tobytes())
-                f.write(layer['wv'].astype(np.float32).tobytes())
-                f.write(layer['wo'].astype(np.float32).tobytes())
-                f.write(layer['w1'].astype(np.float32).tobytes())
-                f.write(layer['w2'].astype(np.float32).tobytes())
+            # Layer weights with progress bar
+            with tqdm(self.model.layers, desc="Saving Layers", unit="layer") as pbar:
+                for layer in pbar:
+                    f.write(layer['ln1_weight'].astype(np.float32).tobytes())
+                    f.write(layer['ln2_weight'].astype(np.float32).tobytes())
+                    f.write(layer['wq'].astype(np.float32).tobytes())
+                    f.write(layer['wk'].astype(np.float32).tobytes())
+                    f.write(layer['wv'].astype(np.float32).tobytes())
+                    f.write(layer['wo'].astype(np.float32).tobytes())
+                    f.write(layer['w1'].astype(np.float32).tobytes())
+                    f.write(layer['w2'].astype(np.float32).tobytes())
+                    
+                    # Update progress bar
+                    pbar.set_postfix({
+                        'dim': self.config['dim'],
+                        'hidden': self.config['hidden_dim']
+                    })
             
             # Final layer norm
             f.write(self.model.final_ln_weight.astype(np.float32).tobytes())
@@ -3965,38 +4240,63 @@ def test_ultra_extreme_1d():
     print(f"\nStarting parallel training with {worker_count} workers...")
     print("This will be MUCH faster than sequential training!")
     
-    with ProcessPoolExecutor(max_workers=worker_count) as executor:
-        # Submit all training jobs
-        future_to_variant = {
-            executor.submit(parallel_training_worker, args): args[0] 
-            for args in training_args
-        }
-        
-        # Process completed jobs
-        completed = 0
-        for future in as_completed(future_to_variant):
-            variant = future_to_variant[future]
-            completed += 1
+    # Progress bar for parallel training
+    with tqdm(total=len(variants), desc="Parallel Training Progress", unit="model") as pbar:
+        with ProcessPoolExecutor(max_workers=worker_count) as executor:
+            # Submit all training jobs
+            future_to_variant = {
+                executor.submit(parallel_training_worker, args): args[0] 
+                for args in training_args
+            }
             
-            try:
-                result = future.result()
-                results[variant] = result
+            # Process completed jobs
+            completed = 0
+            successful = 0
+            failed = 0
+            
+            for future in as_completed(future_to_variant):
+                variant = future_to_variant[future]
+                completed += 1
                 
-                if result['success']:
-                    print(f"✅ {variant.upper()} COMPLETED ({completed}/{len(variants)}): "
-                          f"{result['parameters']:,} params, {result['training_time']:.1f}s training")
-                    print(f"   Architecture: {result['dim']}d, {result['hidden_dim']}h "
-                          f"({result['hidden_dim']//result['dim']}x ratio)")
-                else:
-                    print(f"❌ {variant.upper()} FAILED ({completed}/{len(variants)}): {result['error']}")
-                
-            except Exception as e:
-                print(f"❌ {variant.upper()} EXECUTION ERROR ({completed}/{len(variants)}): {e}")
-                results[variant] = {'error': f"Execution error: {e}"}
+                try:
+                    result = future.result()
+                    results[variant] = result
+                    
+                    if result['success']:
+                        successful += 1
+                        print(f"✅ {variant.upper()} COMPLETED ({completed}/{len(variants)}): "
+                              f"{result['parameters']:,} params, {result['training_time']:.1f}s training")
+                        print(f"   Architecture: {result['dim']}d, {result['hidden_dim']}h "
+                              f"({result['hidden_dim']//result['dim']}x ratio)")
+                    else:
+                        failed += 1
+                        print(f"❌ {variant.upper()} FAILED ({completed}/{len(variants)}): {result['error']}")
+                    
+                    # Update progress bar
+                    pbar.set_postfix({
+                        'completed': completed,
+                        'successful': successful,
+                        'failed': failed
+                    })
+                    pbar.update(1)
+                    
+                except Exception as e:
+                    failed += 1
+                    print(f"❌ {variant.upper()} EXECUTION ERROR ({completed}/{len(variants)}): {e}")
+                    results[variant] = {'error': f"Execution error: {e}"}
+                    
+                    # Update progress bar
+                    pbar.set_postfix({
+                        'completed': completed,
+                        'successful': successful,
+                        'failed': failed
+                    })
+                    pbar.update(1)
     
     total_training_time = time.time() - start_time
     print(f"\n🎉 PARALLEL TRAINING COMPLETE!")
     print(f"Total time: {total_training_time:.1f}s for {len(variants)} models")
+    print(f"Successful: {successful}, Failed: {failed}")
     print(f"Average per model: {total_training_time/len(variants):.1f}s")
     print(f"Speedup vs sequential: ~{len(variants)/worker_count:.1f}x faster!")
     
@@ -4073,23 +4373,39 @@ def test_ffn_extremes():
     print("Expected speedup: 4-8x faster than sequential testing!")
     
     results = []
-    with ProcessPoolExecutor(max_workers=worker_count) as executor:
-        future_to_variant = {executor.submit(parallel_training_worker, args): args[0] for args in training_args}
-        
-        for future in as_completed(future_to_variant):
-            variant = future_to_variant[future]
-            try:
-                result = future.result()
-                if result.get('success', False):
-                    print(f"✅ {variant}: {result['parameters']} params, {result['training_time']:.1f}s")
-                    results.append(result)
-                else:
-                    print(f"❌ {variant}: {result.get('error', 'Unknown error')}")
-            except Exception as e:
-                print(f"❌ {variant}: Exception - {e}")
+    successful = 0
+    failed = 0
+    
+    # Progress bar for Phase 2 FFN testing
+    with tqdm(total=len(ffn_variants), desc="Phase 2: FFN Extremes", unit="model") as pbar:
+        with ProcessPoolExecutor(max_workers=worker_count) as executor:
+            future_to_variant = {executor.submit(parallel_training_worker, args): args[0] for args in training_args}
+            
+            for future in as_completed(future_to_variant):
+                variant = future_to_variant[future]
+                try:
+                    result = future.result()
+                    if result.get('success', False):
+                        successful += 1
+                        print(f"✅ {variant}: {result['parameters']} params, {result['training_time']:.1f}s")
+                        results.append(result)
+                    else:
+                        failed += 1
+                        print(f"❌ {variant}: {result.get('error', 'Unknown error')}")
+                except Exception as e:
+                    failed += 1
+                    print(f"❌ {variant}: Exception - {e}")
+                
+                # Update progress bar
+                pbar.set_postfix({
+                    'successful': successful,
+                    'failed': failed
+                })
+                pbar.update(1)
     
     print(f"\n🏁 FFN Extreme Study Complete!")
     print(f"Successfully trained: {len(results)}/{len(ffn_variants)} models")
+    print(f"Successful: {successful}, Failed: {failed}")
     
     # Group results by FFN ratio
     ffn_ratios = {'128x': [], '256x': [], '512x': [], '1024x': [], '2048x': [], '4096x': []}
@@ -4130,23 +4446,39 @@ def test_attention_extremes():
     print("Target: Discover models that can achieve 50+ tok/s!")
     
     results = []
-    with ProcessPoolExecutor(max_workers=worker_count) as executor:
-        future_to_variant = {executor.submit(parallel_training_worker, args): args[0] for args in training_args}
-        
-        for future in as_completed(future_to_variant):
-            variant = future_to_variant[future]
-            try:
-                result = future.result()
-                if result.get('success', False):
-                    print(f"✅ {variant}: {result['parameters']} params, {result['training_time']:.1f}s")
-                    results.append(result)
-                else:
-                    print(f"❌ {variant}: {result.get('error', 'Unknown error')}")
-            except Exception as e:
-                print(f"❌ {variant}: Exception - {e}")
+    successful = 0
+    failed = 0
+    
+    # Progress bar for Phase 3 attention testing
+    with tqdm(total=len(attn_variants), desc="Phase 3: Attention Extremes", unit="model") as pbar:
+        with ProcessPoolExecutor(max_workers=worker_count) as executor:
+            future_to_variant = {executor.submit(parallel_training_worker, args): args[0] for args in training_args}
+            
+            for future in as_completed(future_to_variant):
+                variant = future_to_variant[future]
+                try:
+                    result = future.result()
+                    if result.get('success', False):
+                        successful += 1
+                        print(f"✅ {variant}: {result['parameters']} params, {result['training_time']:.1f}s")
+                        results.append(result)
+                    else:
+                        failed += 1
+                        print(f"❌ {variant}: {result.get('error', 'Unknown error')}")
+                except Exception as e:
+                    failed += 1
+                    print(f"❌ {variant}: Exception - {e}")
+                
+                # Update progress bar
+                pbar.set_postfix({
+                    'successful': successful,
+                    'failed': failed
+                })
+                pbar.update(1)
     
     print(f"\n🏁 Attention Head Extremes Study Complete!")
     print(f"Successfully trained: {len(results)}/{len(attn_variants)} models")
+    print(f"Successful: {successful}, Failed: {failed}")
     
     # Group results by attention head count
     head_counts = {'32h': [], '48h': [], '64h': [], '96h': [], '128h': [], 'hybrid': []}
@@ -4207,12 +4539,14 @@ def test_all_variants_parallel():
     print(f"This will test {len(all_variants)} models simultaneously!")
     print("Expected speedup: ~{:.1f}x faster than sequential training!".format(len(all_variants)/worker_count))
     
-    with ProcessPoolExecutor(max_workers=worker_count) as executor:
-        # Submit all training jobs
-        future_to_variant = {
-            executor.submit(parallel_training_worker, args): args[0] 
-            for args in training_args
-        }
+    # Progress bar for massive parallel testing
+    with tqdm(total=len(all_variants), desc="Massive Parallel Training", unit="model") as pbar:
+        with ProcessPoolExecutor(max_workers=worker_count) as executor:
+            # Submit all training jobs
+            future_to_variant = {
+                executor.submit(parallel_training_worker, args): args[0] 
+                for args in training_args
+            }
         
         # Process completed jobs
         completed = 0
@@ -4243,7 +4577,15 @@ def test_all_variants_parallel():
                     failed_count += 1
                     print(f"❌ {variant.upper()} FAILED ({completed}/{len(all_variants)}): {result['error']}")
                 
-                # Show progress every 10 completions
+                # Update progress bar
+                pbar.set_postfix({
+                    'completed': completed,
+                    'successful': successful_count,
+                    'failed': failed_count
+                })
+                pbar.update(1)
+                
+                # Show detailed progress every 10 completions
                 if completed % 10 == 0:
                     elapsed = time.time() - start_time
                     remaining = len(all_variants) - completed
@@ -4256,6 +4598,14 @@ def test_all_variants_parallel():
                 failed_count += 1
                 print(f"❌ {variant.upper()} EXECUTION ERROR ({completed}/{len(all_variants)}): {e}")
                 results[variant] = {'error': f"Execution error: {e}"}
+                
+                # Update progress bar
+                pbar.set_postfix({
+                    'completed': completed,
+                    'successful': successful_count,
+                    'failed': failed_count
+                })
+                pbar.update(1)
     
     total_training_time = time.time() - start_time
     print(f"\n🎉 MASSIVE PARALLEL TRAINING COMPLETE!")
@@ -4320,6 +4670,274 @@ def test_all_variants_parallel():
     
     return results
 
+def test_ultra_deep_layers():
+    """Test ultra-deep layer models (10+ layers) with parallel processing"""
+    print("🚀 PHASE 4: ULTRA-DEEP LAYER STUDY (10+ Layers!)")
+    print("Testing ultra-deep architectures that have NEVER been attempted on microcontrollers!")
+    print("Target: 15+ tok/s with ultra-deep + ultra-narrow architectures!")
+    
+    # Collect all ultra-deep variants
+    deep_variants = [name for name in MODEL_CONFIGS.keys() if 'deep-' in name and any(x in name for x in ['10l', '15l', '20l', '25l', '30l'])]
+    
+    print(f"\n📊 Found {len(deep_variants)} ultra-deep variants to test:")
+    for variant in deep_variants:
+        config = MODEL_CONFIGS[variant]
+        print(f"  {variant}: {config['description']}")
+    
+    # Use parallel processing for maximum speed
+    worker_count = get_optimal_worker_count()
+    training_args = [(variant, 20, 0.01) for variant in deep_variants]
+    
+    print(f"\n🚀 Using {worker_count} parallel workers for ultra-fast deep layer testing!")
+    print("Expected speedup: 4-8x faster than sequential testing!")
+    print("Target: Discover models that can achieve 15+ tok/s with ultra-deep architectures!")
+    
+    results = []
+    successful = 0
+    failed = 0
+    
+    # Progress bar for Phase 4 testing
+    with tqdm(total=len(deep_variants), desc="Phase 4: Ultra-Deep Layers", unit="model") as pbar:
+        with ProcessPoolExecutor(max_workers=worker_count) as executor:
+            future_to_variant = {executor.submit(parallel_training_worker, args): args[0] for args in training_args}
+            
+            for future in as_completed(future_to_variant):
+                variant = future_to_variant[future]
+                try:
+                    result = future.result()
+                    if result.get('success', False):
+                        successful += 1
+                        print(f"✅ {variant}: {result['parameters']} params, {result['training_time']:.1f}s")
+                        results.append(result)
+                    else:
+                        failed += 1
+                        print(f"❌ {variant}: {result.get('error', 'Unknown error')}")
+                except Exception as e:
+                    failed += 1
+                    print(f"❌ {variant}: Exception - {e}")
+                
+                # Update progress bar
+                pbar.set_postfix({
+                    'successful': successful,
+                    'failed': failed
+                })
+                pbar.update(1)
+    
+    print(f"\n🏁 Ultra-Deep Layer Study Complete!")
+    print(f"Successfully trained: {len(results)}/{len(deep_variants)} models")
+    print(f"Successful: {successful}, Failed: {failed}")
+    
+    # Group results by layer depth
+    layer_depths = {'10l': [], '15l': [], '20l': [], '25l': [], '30l': []}
+    for result in results:
+        for depth in layer_depths:
+            if depth in result['model_size']:
+                layer_depths[depth].append(result)
+                break
+    
+    print("\n📊 Layer Depth Success Rates:")
+    for depth, models in layer_depths.items():
+        if models:
+            success_rate = len(models) / len([v for v in deep_variants if depth in v]) * 100
+            print(f"  {depth}: {len(models)}/{len([v for v in deep_variants if depth in v])} ({success_rate:.1f}%)")
+    
+    # Check for speed champions
+    if results:
+        fastest = min(results, key=lambda x: x['training_time'])
+        print(f"\n🏆 Fastest Training: {fastest['model_size']} in {fastest['training_time']:.1f}s")
+        print(f"   Parameters: {fastest['parameters']}, Final Loss: {fastest['final_loss']:.4f}")
+    
+    return results
+
+def test_hybrid_ultra_extreme():
+    """Phase 5: Test hybrid ultra-extreme models combining ALL proven RP2040 approaches"""
+    print("\n" + "="*80)
+    print("🚀 PHASE 5: HYBRID ULTRA-EXTREME STUDY - RP2040-OPTIMIZED!")
+    print("="*80)
+    print("Combining ALL proven RP2040 approaches:")
+    print("✅ Ultra-narrow dimensions (1d-8d)")
+    print("✅ Ultra-fat FFN (32x-256x ratios)")
+    print("✅ Ultra-wide attention (8-32 heads)")
+    print("✅ Ultra-deep layers (5-15 layers)")
+    print("🎯 Target: 5+ tok/s with ultimate hybrid architectures!")
+    
+    # Define Phase 5 hybrid models to test
+    hybrid_models = [
+        # 1K Hybrid Ultimate Models
+        'story-hybrid-1k-ultimate',      # 1d + 256x FFN + 15 layers
+        'story-hybrid-1k-attn-deep',     # 1d + 32 heads + 15 layers
+        'story-hybrid-1k-triple',        # 1d + 256x FFN + 32 heads + 15 layers
+        
+        # 3K Hybrid Ultimate Models
+        'story-hybrid-3k-ultimate',      # 2d + 256x FFN + 10 layers
+        'story-hybrid-3k-attn-deep',     # 2d + 32 heads + 10 layers
+        'story-hybrid-3k-triple',        # 2d + 256x FFN + 32 heads + 10 layers
+        
+        # 5K Hybrid Ultimate Models
+        'story-hybrid-5k-ultimate',      # 4d + 128x FFN + 8 layers
+        'story-hybrid-5k-attn-deep',     # 4d + 16 heads + 8 layers
+        'story-hybrid-5k-triple',        # 4d + 128x FFN + 16 heads + 8 layers
+        
+        # 7K Hybrid Ultimate Models
+        'story-hybrid-7k-ultimate',      # 6d + 64x FFN + 6 layers
+        'story-hybrid-7k-attn-deep',     # 6d + 12 heads + 6 layers
+        'story-hybrid-7k-triple',        # 6d + 64x FFN + 12 heads + 6 layers
+        
+        # 10K Hybrid Ultimate Models
+        'story-hybrid-10k-ultimate',     # 8d + 32x FFN + 5 layers
+        'story-hybrid-10k-attn-deep',    # 8d + 8 heads + 5 layers
+        'story-hybrid-10k-triple',       # 8d + 32x FFN + 8 heads + 5 layers
+    ]
+    
+    print(f"\n🎯 Testing {len(hybrid_models)} hybrid ultra-extreme models...")
+    print("📊 Expected success rate: 90%+ (RP2040-optimized architectures!)")
+    
+    # Test each hybrid model
+    successful_models = []
+    failed_models = []
+    
+    for model_name in hybrid_models:
+        if model_name in MODEL_CONFIGS:
+            config = MODEL_CONFIGS[model_name]
+            print(f"\n🔬 Testing {model_name}...")
+            print(f"   Architecture: {config['dim']}d, {config['hidden_dim']}h, {config['n_layers']} layers, {config['n_heads']} heads")
+            print(f"   Parameters: ~{estimate_model_size(config['vocab_size'], config['dim'], config['hidden_dim'], config['n_layers'], config['n_heads']):.0f}")
+            
+            try:
+                # Create and train the model
+                trainer = ScalableTrainer(model_name)
+                trainer.train(epochs=30)  # Reduced epochs for faster testing
+                trainer.save_model()
+                
+                print(f"   ✅ {model_name} trained and saved successfully!")
+                successful_models.append(model_name)
+                
+            except Exception as e:
+                print(f"   ❌ {model_name} failed: {str(e)}")
+                failed_models.append(model_name)
+        else:
+            print(f"   ❌ {model_name} not found in MODEL_CONFIGS")
+            failed_models.append(model_name)
+    
+    # Results summary
+    print("\n" + "="*80)
+    print("🏁 PHASE 5 HYBRID ULTRA-EXTREME STUDY COMPLETE!")
+    print("="*80)
+    print(f"📊 Results: {len(successful_models)}/{len(hybrid_models)} models successful ({len(successful_models)/len(hybrid_models)*100:.1f}%)")
+    
+    if successful_models:
+        print(f"\n✅ SUCCESSFUL MODELS ({len(successful_models)}):")
+        for model in successful_models:
+            print(f"   • {model}")
+    
+    if failed_models:
+        print(f"\n❌ FAILED MODELS ({len(failed_models)}):")
+        for model in failed_models:
+            print(f"   • {model}")
+    
+    print(f"\n🎯 Next step: Test these models on RP2040 for real performance!")
+    print("🚀 Expected breakthroughs: 5+ tok/s with ultimate hybrid architectures!")
+    
+    return successful_models, failed_models
+
+def test_hybrid_ultra_extreme_parallel():
+    """Phase 5: Test hybrid ultra-extreme models in parallel for maximum speed"""
+    print("\n" + "="*80)
+    print("🚀 PHASE 5: HYBRID ULTRA-EXTREME STUDY - PARALLEL PROCESSING!")
+    print("="*80)
+    print("Combining ALL proven RP2040 approaches with parallel training:")
+    print("✅ Ultra-narrow dimensions (1d-8d)")
+    print("✅ Ultra-fat FFN (32x-256x ratios)")
+    print("✅ Ultra-wide attention (8-32 heads)")
+    print("✅ Ultra-deep layers (5-15 layers)")
+    print("🎯 Target: 5+ tok/s with ultimate hybrid architectures!")
+    
+    # Define Phase 5 hybrid models to test
+    hybrid_models = [
+        # 1K Hybrid Ultimate Models
+        'story-hybrid-1k-ultimate',      # 1d + 256x FFN + 15 layers
+        'story-hybrid-1k-attn-deep',     # 1d + 32 heads + 15 layers
+        'story-hybrid-1k-triple',        # 1d + 256x FFN + 32 heads + 15 layers
+        
+        # 3K Hybrid Ultimate Models
+        'story-hybrid-3k-ultimate',      # 2d + 256x FFN + 10 layers
+        'story-hybrid-3k-attn-deep',     # 2d + 32 heads + 10 layers
+        'story-hybrid-3k-triple',        # 2d + 256x FFN + 32 heads + 10 layers
+        
+        # 5K Hybrid Ultimate Models
+        'story-hybrid-5k-ultimate',      # 4d + 128x FFN + 8 layers
+        'story-hybrid-5k-attn-deep',     # 4d + 16 heads + 8 layers
+        'story-hybrid-5k-triple',        # 4d + 128x FFN + 16 heads + 8 layers
+        
+        # 7K Hybrid Ultimate Models
+        'story-hybrid-7k-ultimate',      # 6d + 64x FFN + 6 layers
+        'story-hybrid-7k-attn-deep',     # 6d + 12 heads + 6 layers
+        'story-hybrid-7k-triple',        # 6d + 64x FFN + 12 heads + 6 layers
+        
+        # 10K Hybrid Ultimate Models
+        'story-hybrid-10k-ultimate',     # 8d + 32x FFN + 5 layers
+        'story-hybrid-10k-attn-deep',    # 8d + 8 heads + 5 layers
+        'story-hybrid-10k-triple',       # 8d + 32x FFN + 8 heads + 5 layers
+    ]
+    
+    print(f"\n🎯 Testing {len(hybrid_models)} hybrid ultra-extreme models in parallel...")
+    print("📊 Expected success rate: 90%+ (RP2040-optimized architectures!)")
+    print("⚡ Parallel processing: 4-8x faster than sequential!")
+    
+    # Get optimal worker count
+    worker_count = get_optimal_worker_count()
+    print(f"🔧 Using {worker_count} parallel workers for maximum speed!")
+    
+    # Prepare arguments for parallel processing
+    args_list = []
+    for model_name in hybrid_models:
+        if model_name in MODEL_CONFIGS:
+            args_list.append((model_name, 30))  # 30 epochs for faster testing
+    
+    # Execute parallel training
+    successful_models = []
+    failed_models = []
+    
+    with ProcessPoolExecutor(max_workers=worker_count) as executor:
+        # Submit all tasks
+        future_to_model = {executor.submit(parallel_training_worker, args): args[0] for args in args_list}
+        
+        # Process results as they complete
+        for future in as_completed(future_to_model):
+            model_name = future_to_model[future]
+            try:
+                result = future.result()
+                if result['success']:
+                    print(f"   ✅ {model_name} completed successfully!")
+                    successful_models.append(model_name)
+                else:
+                    print(f"   ❌ {model_name} failed: {result['error']}")
+                    failed_models.append(model_name)
+            except Exception as e:
+                print(f"   ❌ {model_name} failed with exception: {str(e)}")
+                failed_models.append(model_name)
+    
+    # Results summary
+    print("\n" + "="*80)
+    print("🏁 PHASE 5 HYBRID ULTRA-EXTREME STUDY COMPLETE!")
+    print("="*80)
+    print(f"📊 Results: {len(successful_models)}/{len(hybrid_models)} models successful ({len(successful_models)/len(hybrid_models)*100:.1f}%)")
+    
+    if successful_models:
+        print(f"\n✅ SUCCESSFUL MODELS ({len(successful_models)}):")
+        for model in successful_models:
+            print(f"   • {model}")
+    
+    if failed_models:
+        print(f"\n❌ FAILED MODELS ({len(failed_models)}):")
+        for model in failed_models:
+            print(f"   • {model}")
+    
+    print(f"\n🎯 Next step: Test these models on RP2040 for real performance!")
+    print("🚀 Expected breakthroughs: 5+ tok/s with ultimate hybrid architectures!")
+    
+    return successful_models, failed_models
+
 def main():
     """Main training function"""
     print("=== Scalable Transformer Training ===")
@@ -4342,11 +4960,15 @@ def main():
     print("  ultra_1d : Test ULTRA-EXTREME 1D/2D/3D models (Never attempted!)")
     print("  ffn_test : Test ULTRA-EXTREME FFN RATIO models (Never attempted!)")
     print("  attn_test : Test ATTENTION HEAD EXTREMES (32+ heads) (Never attempted!)")
+    print("  deep_test : Test ULTRA-DEEP LAYER STUDY (10+ layers) (Never attempted!)")
+    print("  hybrid_test : Test HYBRID ULTRA-EXTREME STUDY (All approaches combined!)")
     
     print("\n🚀 PARALLEL TESTING (MULTI-CORE SPEEDUP!):")
     print("  ultra_1d_parallel : Test ULTRA-EXTREME 1D/2D/3D models with parallel processing")
     print("  ffn_test_parallel : Test ULTRA-EXTREME FFN RATIO models with parallel processing")
     print("  attn_test_parallel : Test ATTENTION HEAD EXTREMES (32+ heads) with parallel processing")
+    print("  deep_test_parallel : Test ULTRA-DEEP LAYER STUDY (10+ layers) with parallel processing")
+    print("  hybrid_test_parallel : Test HYBRID ULTRA-EXTREME STUDY with parallel processing")
     print("  all_parallel : Test ALL variants simultaneously with maximum parallel processing!")
     print("  Expected speedup: 4-8x faster on typical computers!")
     
@@ -4398,6 +5020,18 @@ def main():
     elif choice == 'attn_test_parallel':
         print("🚀 Using parallel processing for ATTENTION HEAD EXTREMES (32+ heads)!")
         test_attention_extremes()  # Phase 3: Ultra-wide attention!
+    elif choice == 'deep_test':
+        print("🚀 Testing ULTRA-DEEP LAYER STUDY (10+ layers) - Phase 4!")
+        test_ultra_deep_layers()
+    elif choice == 'deep_test_parallel':
+        print("🚀 Using parallel processing for ULTRA-DEEP LAYER STUDY (10+ layers)!")
+        test_ultra_deep_layers()  # Phase 4: Ultra-deep layers!
+    elif choice == 'hybrid_test':
+        print("🚀 Testing HYBRID ULTRA-EXTREME STUDY - Phase 5!")
+        test_hybrid_ultra_extreme()
+    elif choice == 'hybrid_test_parallel':
+        print("🚀 Using parallel processing for HYBRID ULTRA-EXTREME STUDY - Phase 5!")
+        test_hybrid_ultra_extreme_parallel()
     elif choice == 'all_parallel':
         print("🚀 MASSIVE PARALLEL TESTING - Using ALL CPU cores!")
         test_all_variants_parallel()

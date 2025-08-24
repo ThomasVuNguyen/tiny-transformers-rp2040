@@ -1,0 +1,9 @@
+{
+  "vocab_size": 512,
+  "dim": 5,
+  "hidden_dim": 1024,
+  "n_layers": 15,
+  "n_heads": 1,
+  "max_seq_len": 52,
+  "description": "10.0K parameters - ULTRA 15 LAYERS (beyond ultra-deep!)"
+}

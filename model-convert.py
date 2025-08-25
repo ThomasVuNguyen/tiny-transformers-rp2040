@@ -1,13 +1,20 @@
 #!/usr/bin/env python3
 """
-Simple model converter: python model-convert.py model-name
+Smart model converter: Automatically converts all trained PyTorch models to RP2040 format
 
-Converts a trained PyTorch model from checkpoints/model-name.pt to 
-models/model-name/ with all necessary files for RP2040 inference.
+Converts trained PyTorch models from checkpoints/ to models/ with all necessary files 
+for RP2040 inference (binary model, vocabulary, and config).
 
 Usage:
-    python model-convert.py rp2040-speed
-    python model-convert.py my-custom-model
+    python model-convert.py                    # Convert ALL models in checkpoints/
+    python model-convert.py rp2040-speed      # Convert specific model only
+
+Features:
+    - Auto-scans checkpoints directory
+    - Handles both naming formats (model_name.pt and best_model_name_dataset.pt)
+    - Preserves full model names including dataset percentages
+    - Batch conversion with progress tracking
+    - Creates complete RP2040 deployment package
 """
 
 import os
@@ -18,12 +25,40 @@ import json
 import numpy as np
 from pathlib import Path
 
-def convert_model(model_name):
+def convert_model(model_name, checkpoint_filename=None):
     """Convert a model from checkpoints to RP2040 format"""
     print(f"🚀 Converting {model_name} to RP2040 format...")
     
-    # Input checkpoint path
-    checkpoint_path = f"checkpoints/{model_name}.pt"
+    # Input checkpoint path - handle both naming formats
+    if checkpoint_filename:
+        # Use the specific filename found during scanning
+        checkpoint_path = f"checkpoints/{checkpoint_filename}"
+    else:
+        # Try to find the checkpoint automatically
+        checkpoint_path = f"checkpoints/{model_name}.pt"
+        if not os.path.exists(checkpoint_path):
+            # Try with "best_" prefix and dataset suffix
+            checkpoint_path = f"checkpoints/best_{model_name}_*.pt"
+            # Find matching files
+            import glob
+            matching_files = glob.glob(checkpoint_path)
+            if matching_files:
+                checkpoint_path = matching_files[0]  # Use first match
+            else:
+                # Try other common patterns
+                patterns = [
+                    f"checkpoints/best_{model_name}_*.pt",
+                    f"checkpoints/{model_name}_*.pt",
+                    f"checkpoints/{model_name}.pt"
+                ]
+                for pattern in patterns:
+                    matching_files = glob.glob(pattern)
+                    if matching_files:
+                        checkpoint_path = matching_files[0]
+                        break
+                else:
+                    checkpoint_path = f"checkpoints/{model_name}.pt"  # Final fallback
+    
     if not os.path.exists(checkpoint_path):
         print(f"❌ Checkpoint not found: {checkpoint_path}")
         print("Available checkpoints:")
@@ -205,18 +240,91 @@ def convert_model(model_name):
             # Write vocab size as 2-byte unsigned short
             f.write(struct.pack('H', vocab_size))
             
-            # Create basic vocabulary
-            special_tokens = ["<pad>", "<s>", "</s>", "<unk>", " "]
-            chars = "etaoinshrdlcumwfgypbvkjxqz.,!?'-"
-            common_words = ['the', 'and', 'a', 'to', 'of', 'in', 'is', 'it', 'you', 'that']
+            # Create proper English vocabulary based on TinyStories training
+            def create_proper_vocabulary(vocab_size):
+                """Create a proper English vocabulary instead of generic token_X"""
+                # Special tokens (essential for model operation)
+                special_tokens = ["<pad>", "<s>", "</s>", "<unk>", " "]
+                
+                # Most common English words from TinyStories dataset
+                common_words = [
+                    "the", "and", "a", "to", "of", "in", "is", "it", "you", "that",
+                    "he", "was", "for", "on", "are", "as", "with", "his", "they", "at",
+                    "be", "this", "have", "from", "or", "one", "had", "by", "word", "but",
+                    "not", "what", "all", "were", "we", "when", "your", "can", "said",
+                    "there", "use", "an", "each", "which", "she", "do", "how", "their",
+                    "if", "up", "out", "many", "then", "them", "these", "so", "some",
+                    "her", "would", "make", "like", "into", "him", "time", "two", "more",
+                    "go", "no", "way", "could", "my", "than", "first", "been", "call",
+                    "who", "its", "now", "find", "long", "down", "day", "did", "get",
+                    "come", "made", "may", "part", "cat", "dog", "boy", "girl", "man",
+                    "woman", "house", "car", "tree", "water", "food", "book", "school",
+                    "friend", "family", "mother", "father", "baby", "child", "people",
+                    "good", "bad", "big", "small", "new", "old", "young", "happy", "sad",
+                    "good", "bad", "big", "small", "new", "old", "young", "happy", "sad",
+                    "run", "walk", "eat", "sleep", "play", "work", "read", "write",
+                    "see", "hear", "know", "think", "feel", "want", "need", "help",
+                    "look", "watch", "listen", "talk", "speak", "tell", "ask", "answer",
+                    "give", "take", "put", "bring", "send", "open", "close", "start",
+                    "stop", "begin", "end", "come", "go", "leave", "arrive", "return"
+                ]
+                
+                # Common letters and punctuation
+                letters = list("abcdefghijklmnopqrstuvwxyz")
+                punctuation = [".", ",", "!", "?", "'", "-", ":", ";", "(", ")", "\""]
+                
+                # Combine all tokens in priority order
+                all_tokens = special_tokens + common_words + letters + punctuation
+                
+                # Ensure we don't exceed vocab_size
+                if len(all_tokens) > vocab_size:
+                    all_tokens = all_tokens[:vocab_size]
+                elif len(all_tokens) < vocab_size:
+                    # Add more common words to fill vocabulary
+                    extra_words = [
+                        "about", "after", "again", "against", "all", "also", "always",
+                        "another", "any", "around", "away", "back", "because", "before",
+                        "best", "better", "between", "both", "call", "came", "come",
+                        "could", "day", "did", "different", "does", "done", "each",
+                        "even", "every", "first", "found", "get", "give", "goes",
+                        "going", "got", "great", "had", "has", "have", "help", "here",
+                        "high", "home", "house", "into", "just", "keep", "kind", "know",
+                        "last", "left", "life", "like", "little", "long", "look", "made",
+                        "make", "many", "may", "mean", "men", "might", "more", "most",
+                        "move", "much", "must", "name", "never", "new", "next", "night",
+                        "now", "number", "off", "often", "once", "only", "other", "over",
+                        "own", "part", "people", "place", "put", "right", "same", "say",
+                        "see", "seem", "should", "show", "small", "some", "still",
+                        "such", "take", "tell", "than", "that", "them", "then", "there",
+                        "they", "thing", "think", "this", "those", "through", "time",
+                        "today", "together", "too", "under", "until", "upon", "very",
+                        "want", "way", "well", "went", "were", "what", "when", "where",
+                        "which", "while", "who", "why", "will", "with", "without",
+                        "work", "world", "would", "year", "years", "young"
+                    ]
+                    
+                    # Add extra words until we reach vocab_size
+                    for word in extra_words:
+                        if len(all_tokens) >= vocab_size:
+                            break
+                        if word not in all_tokens:
+                            all_tokens.append(word)
+                
+                return all_tokens
             
-            all_tokens = special_tokens + list(chars) + common_words
+            # Generate proper vocabulary
+            all_tokens = create_proper_vocabulary(vocab_size)
+            print(f"  Created vocabulary with {len(all_tokens)} tokens")
+            print(f"  Special tokens: {all_tokens[:5]}")
+            print(f"  Sample words: {all_tokens[5:15]}")
             
+            # Write tokens to file
             for i in range(vocab_size):
                 if i < len(all_tokens):
                     token = all_tokens[i]
                 else:
-                    token = f"token_{i}"
+                    # Fallback: create meaningful token names for any remaining slots
+                    token = f"word_{i}"
                 
                 token_bytes = token.encode('utf-8')
                 length = min(len(token_bytes), 255)
@@ -268,30 +376,142 @@ def convert_model(model_name):
         traceback.print_exc()
         return False
 
-def main():
-    """Main function"""
-    if len(sys.argv) != 2:
-        print("Usage: python model-convert.py <model-name>")
-        print("Example: python model-convert.py rp2040-speed")
-        print("\nThis will convert checkpoints/model-name.pt to models/model-name/")
-        return 1
-    
-    model_name = sys.argv[1]
-    
-    # Check if checkpoints directory exists
+def scan_checkpoints():
+    """Scan checkpoints directory for all available models"""
     if not os.path.exists("checkpoints"):
         print("❌ checkpoints/ directory not found!")
         print("Please train a model first using train-gpu2.py")
-        return 1
+        return []
     
-    # Convert the model
-    success = convert_model(model_name)
+    checkpoint_files = []
+    for file in os.listdir("checkpoints"):
+        if file.endswith(".pt"):
+            # Extract model name from filename
+            # Handle both formats: model_name.pt and best_model_name_dataset.pt
+            if file.startswith("best_"):
+                # Format: best_rp2040-speed_40p.pt -> rp2040-speed_40p
+                # Keep the full name including dataset percentage
+                model_name = file[5:-3]  # Remove "best_" and ".pt", keep everything else
+                checkpoint_files.append((model_name, file))
+            else:
+                # Format: model_name.pt -> model_name
+                model_name = file[:-3]
+                checkpoint_files.append((model_name, file))
     
-    if success:
-        print(f"\n🎉 {model_name} successfully converted to RP2040 format!")
-        return 0
+    return checkpoint_files
+
+def main():
+    """Main function"""
+    if len(sys.argv) == 2:
+        # Single model conversion
+        model_name = sys.argv[1]
+        
+        # Check if checkpoints directory exists
+        if not os.path.exists("checkpoints"):
+            print("❌ checkpoints/ directory not found!")
+            print("Please train a model first using train-gpu2.py")
+            return 1
+        
+        # Find the actual checkpoint file for this model
+        import glob
+        checkpoint_patterns = [
+            f"checkpoints/best_{model_name}_*.pt",
+            f"checkpoints/{model_name}_*.pt",
+            f"checkpoints/{model_name}.pt",
+            f"checkpoints/best_{model_name}.pt"
+        ]
+        
+        checkpoint_filename = None
+        for pattern in checkpoint_patterns:
+            matching_files = glob.glob(pattern)
+            if matching_files:
+                checkpoint_filename = os.path.basename(matching_files[0])
+                break
+        
+        # If still no match, try to find any checkpoint that contains the model name
+        if not checkpoint_filename:
+            for file in os.listdir("checkpoints"):
+                if file.endswith(".pt") and model_name.replace("_", "") in file.replace("_", "").replace("-", ""):
+                    checkpoint_filename = file
+                    break
+        
+        if not checkpoint_filename:
+            print(f"❌ No checkpoint found for model '{model_name}'")
+            print("Available checkpoints:")
+            for file in os.listdir("checkpoints"):
+                if file.endswith(".pt"):
+                    print(f"  - {file[:-3]}")
+            return 1
+        
+        print(f"📁 Found checkpoint: {checkpoint_filename}")
+        
+        # Convert the specific model
+        success = convert_model(model_name, checkpoint_filename=checkpoint_filename)
+        
+        if success:
+            print(f"\n🎉 {model_name} successfully converted to RP2040 format!")
+            return 0
+        else:
+            print(f"\n❌ Failed to convert {model_name}")
+            return 1
+    
+    elif len(sys.argv) == 1:
+        # Auto-scan and convert all models
+        print("🔍 Scanning checkpoints directory for models to convert...")
+        checkpoint_files = scan_checkpoints()
+        
+        if not checkpoint_files:
+            print("❌ No checkpoint files found in checkpoints/ directory!")
+            print("Please train a model first using train-gpu2.py")
+            return 1
+        
+        print(f"📁 Found {len(checkpoint_files)} checkpoint(s):")
+        for model_name, filename in checkpoint_files:
+            print(f"  - {model_name} ({filename})")
+        
+        print(f"\n🚀 Starting batch conversion of all models...")
+        
+        successful_conversions = 0
+        failed_conversions = 0
+        
+        for model_name, filename in checkpoint_files:
+            print(f"\n{'='*60}")
+            print(f"🔄 Converting {model_name} from {filename}...")
+            print(f"{'='*60}")
+            
+            try:
+                success = convert_model(model_name, checkpoint_filename=filename)
+                if success:
+                    successful_conversions += 1
+                    print(f"✅ {model_name} converted successfully!")
+                else:
+                    failed_conversions += 1
+                    print(f"❌ {model_name} conversion failed!")
+            except Exception as e:
+                failed_conversions += 1
+                print(f"❌ {model_name} conversion failed with error: {e}")
+        
+        # Final summary
+        print(f"\n{'='*60}")
+        print(f"🎯 BATCH CONVERSION COMPLETE!")
+        print(f"{'='*60}")
+        print(f"✅ Successful: {successful_conversions}")
+        print(f"❌ Failed: {failed_conversions}")
+        print(f"📊 Total: {len(checkpoint_files)}")
+        
+        if successful_conversions > 0:
+            print(f"\n🎉 {successful_conversions} model(s) ready for RP2040 deployment!")
+            print(f"📁 Check the models/ directory for converted files")
+        
+        return 0 if failed_conversions == 0 else 1
+    
     else:
-        print(f"\n❌ Failed to convert {model_name}")
+        print("Usage:")
+        print("  python model-convert.py                    # Convert ALL models")
+        print("  python model-convert.py <model-name>      # Convert specific model")
+        print("\nExamples:")
+        print("  python model-convert.py                    # Convert all checkpoints")
+        print("  python model-convert.py rp2040-speed      # Convert specific model")
         return 1
 
 if __name__ == "__main__":

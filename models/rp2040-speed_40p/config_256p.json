@@ -1,0 +1,12 @@
+{
+  "model_name": "rp2040-speed_40p",
+  "vocab_size": 256,
+  "dim": 8,
+  "hidden_dim": 192,
+  "n_layers": 2,
+  "n_heads": 4,
+  "max_seq_len": 48,
+  "quantization": "float32",
+  "description": "SPEED: 8-12K parameters - Fast RP2040 model",
+  "source": "PyTorch training"
+}

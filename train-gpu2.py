@@ -87,13 +87,22 @@ PRODUCTION_CONFIGS = {
         'description': 'OPTIMIZED: 15-20K parameters - Production-ready RP2040 model'
     },
     'rp2040-speed': {
-        'vocab_size': 256,          # Smaller vocab for speed
-        'dim': 8,                   # Narrower for speed (divisible by 4 heads)
-        'hidden_dim': 192,          # 32x FFN ratio
-        'n_layers': 2,              # 2 layers for speed
-        'n_heads': 4,               # 4 heads for speed
-        'max_seq_len': 48,          # Shorter sequences
-        'description': 'SPEED: 8-12K parameters - Fast RP2040 model'
+        'vocab_size': 256,          # Keep current (proven to work on RP2040)
+        'dim': 8,                   # Keep current (good for speed)
+        'hidden_dim': 192,          # Keep current (good ratio)
+        'n_layers': 2,              # Keep current (good for speed)
+        'n_heads': 4,               # Keep current (good for speed)
+        'max_seq_len': 48,          # Keep current
+        'description': 'SPEED: 8-12K parameters - Fast RP2040 model (proven working)'
+    },
+    'rp2040-speed-plus': {
+        'vocab_size': 256,          # Memory-safe vocabulary (proven to work)
+        'dim': 8,                   # Keep current (good for speed)
+        'hidden_dim': 256,          # Increased FFN ratio for better learning
+        'n_layers': 3,              # One more layer for better text generation
+        'n_heads': 4,               # Keep current (good for speed)
+        'max_seq_len': 48,          # Keep current
+        'description': 'SPEED+: 12-15K parameters - Enhanced RP2040 model with better architecture'
     },
     'rp2040-quality': {
         'vocab_size': 1024,         # Large vocab for quality

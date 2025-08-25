@@ -1,5 +1,143 @@
 # RP2040 Transformer Inference Development Log
 
+## 2025-08-24 - 🚀 VOCABULARY UPGRADE: RP2040-SPEED-PLUS MODEL CREATION
+
+### Summary
+After identifying that the current `rp2040-speed` model with 256 tokens was causing repetitive `token_255` output due to vocabulary limitations, we attempted to increase vocabulary size but discovered that RP2040 has severe memory fragmentation limits. Our final strategy is to keep 256 tokens (proven to work) but improve the architecture to reduce repetitive output through better learning capacity.
+
+### 🔍 Problem Analysis
+
+#### **Current Issue:**
+- **Model**: `rp2040-speed` (256 tokens)
+- **Problem**: Generates repetitive `token_255` tokens
+- **Root Cause**: 256 tokens insufficient for TinyStories dataset (~1000-2000+ unique words)
+- **Impact**: Poor text quality, repetitive output, limited language generation
+
+#### **Vocabulary Size Attempts - All Failed:**
+- **512 tokens**: Failed during layer 2 loading (memory allocation failed)
+- **1024 tokens**: Failed during embedding loading (memory allocation failed)
+- **Lesson**: RP2040 has **severe memory fragmentation** limits, not just total memory limits
+
+#### **Final Strategy - Architecture Improvement:**
+- **Keep 256 tokens**: Memory-safe, proven to work on RP2040
+- **Improve architecture**: Better FFN ratio and layer depth for improved learning
+- **Reduce repetition**: Better model capacity should reduce `token_255` output
+- **Memory safe**: Stays within proven working limits
+
+### 🎯 Solution: RP2040-SPEED-PLUS Configuration (Final Strategy)
+
+#### **New Model Specifications:**
+```python
+'rp2040-speed-plus': {
+    'vocab_size': 256,          # Memory-safe vocabulary (proven to work)
+    'dim': 8,                   # Keep current (good for speed)
+    'hidden_dim': 256,          # Increased FFN ratio for better learning
+    'n_layers': 3,              # One more layer for better text generation
+    'n_heads': 4,               # Keep current (good for speed)
+    'max_seq_len': 48,          # Keep current
+    'description': 'SPEED+: 12-15K parameters - Enhanced RP2040 model with better architecture'
+}
+```
+
+#### **Key Benefits:**
+1. **Memory Safe**: 256 tokens proven to work on RP2040
+2. **Better Learning**: Increased FFN ratio (192 → 256) for improved capacity
+3. **Deeper Model**: 3 layers instead of 2 for better text understanding
+4. **Reduced Repetition**: Better architecture should reduce `token_255` output
+5. **Production Ready**: Enhanced model within RP2040 constraints
+
+### 📊 Expected Performance vs. Current Model
+
+| Aspect | Current (256 tokens) | New (256 tokens + better arch) | Improvement |
+|--------|---------------------|--------------------------------|-------------|
+| **Speed** | 1.0-2.4 tok/s | 0.8-1.8 tok/s | ~25% slower (acceptable) |
+| **Memory** | 57KB | ~65-70KB | ~15% more (manageable) |
+| **Quality** | Repetitive `token_255` | Reduced repetition | **Moderate improvement** |
+| **Vocabulary** | 256 tokens | 256 tokens | **Same coverage** |
+| **Architecture** | 2 layers, 192 hidden | 3 layers, 256 hidden | **Better learning** |
+| **Use Case** | Limited demo | Enhanced demo | **Improved quality** |
+| **RP2040 Compatibility** | ✅ Works | ✅ Should work | **Memory safe** |
+
+### 🔧 Implementation Status
+
+#### **✅ Completed:**
+- **Configuration Added**: `rp2040-speed-plus` added to `train-gpu2.py`
+- **Architecture**: 8d, 3 layers, 4 heads, 256 hidden dim (enhanced)
+- **Vocabulary**: Kept at 256 tokens (memory safe)
+
+#### **🔄 Next Steps:**
+1. **Train New Model**: `python train-gpu2.py --model rp2040-speed-plus --dataset-percent 40 --epochs 100`
+2. **Convert to RP2040**: Use `model-convert.py` to create binary format
+3. **Test on RP2040**: Verify improved text quality and reduced repetition
+4. **Performance Validation**: Confirm speed and memory usage
+
+### 🎯 Training Strategy
+
+#### **Dataset Usage:**
+- **Dataset**: TinyStories (40% for balanced training)
+- **Epochs**: 100 (sufficient for architecture learning)
+- **Expected Time**: 3-4 hours (architecture improvement)
+- **Memory**: ~12-15K parameters (fits RP2040 easily)
+
+#### **Success Criteria:**
+- **Reduced repetitive tokens**: Less `token_255` output
+- **Better text generation**: More coherent sentences
+- **Speed**: Maintain 0.8-1.8 tok/s performance
+- **Memory**: Stay under 70KB usage
+- **RP2040 Loading**: Successfully load without memory errors
+
+### 🔬 Technical Rationale
+
+#### **Why architecture improvement is better than vocabulary increase:**
+1. **Memory Safety**: 256 tokens proven to work on RP2040
+2. **Better Learning**: Increased FFN ratio improves model capacity
+3. **Deeper Understanding**: 3 layers can learn more complex patterns
+4. **Reduced Repetition**: Better architecture should reduce fallback to `token_255`
+5. **Practical Solution**: Works within RP2040 constraints
+
+#### **Architecture Improvements:**
+- **FFN Ratio**: 192 → 256 (33% increase in computational power)
+- **Layer Depth**: 2 → 3 (50% increase in model depth)
+- **Parameters**: ~8-12K → ~12-15K (moderate increase)
+- **Memory**: ~57KB → ~65-70KB (manageable increase)
+
+### 📈 Expected Outcomes
+
+This upgrade should improve the RP2040 model quality through **architecture enhancement** rather than vocabulary expansion:
+
+- **Reduced repetitive output** through better learning capacity
+- **More coherent text generation** with deeper model understanding
+- **Maintained speed** at acceptable levels (0.8-1.8 tok/s)
+- **Memory safety** within proven RP2040 working limits
+- **Improved text quality** without hitting memory fragmentation limits
+
+### 🚨 Lessons Learned
+
+#### **RP2040 Memory Constraints:**
+- **Total Memory**: Not the only constraint
+- **Memory Fragmentation**: Severe limitation that prevents large models
+- **Vocabulary Size**: Cannot be increased beyond ~256 tokens on RP2040
+- **Architecture Improvement**: Better approach than vocabulary expansion
+
+#### **Optimal Strategy for RP2040:**
+- **256 tokens**: Maximum safe vocabulary size
+- **Architecture focus**: Improve model capacity within token limits
+- **Memory efficiency**: Stay within proven working parameters
+- **Practical approach**: Better to have working enhanced model than failed large model
+
+### 🎯 Final Recommendation
+
+For RP2040 text generation, the optimal approach is:
+
+1. **Keep vocabulary at 256 tokens** (memory safe)
+2. **Improve architecture** (better FFN ratio, more layers)
+3. **Focus on quality** within constraints rather than expansion beyond limits
+4. **Accept limitations** and optimize within them
+
+The `rp2040-speed-plus` with enhanced architecture represents the **best possible solution** for RP2040 text generation given the severe memory fragmentation constraints.
+
+---
+
 ## 2025-08-24 - 📊 PRODUCTION MODEL INFERENCE SPEED VALIDATION: RP2040-SPEED MODEL
 
 ### Summary
@@ -195,7 +333,7 @@ Successfully implemented and tested comprehensive quantization support for RP204
 
 #### **Dimension Size (MOST CRITICAL - #1 Speed Factor):**
 - **1d → 2d**: **25% speed loss** (32.0 → 24.0 tok/s)
-- **2d → 3d**: **38% speed loss** (24.0 → 14.8 tok/s)
+- **2d → 3d**: **38% speed loss** (24.0 → 14.8 tok/s estimated)
 - **3d → 4d**: **50% speed loss** (14.8 → 7.4 tok/s estimated)
 - **4d → 6d**: **60% speed loss** (7.4 → 3.0 tok/s estimated)
 - **6d → 8d**: **70% speed loss** (3.0 → 0.9 tok/s estimated)
@@ -2998,16 +3136,6 @@ Based on our Phase 3 breakthrough discoveries, we're ready to explore **Phase 4:
 - **Explore mathematical relationships:** Golden ratio, Fibonacci, prime numbers at scale
 - **Test mathematical optimization:** Can we find optimal mathematical architectures?
 
-#### **3. 💾 MEMORY OPTIMIZATION BREAKTHROUGHS:**
-- **Test quantization techniques:** 8-bit, 4-bit, binary weights
-- **Explore sparse architectures:** Can we make models 90%+ sparse?
-- **Test memory-efficient attention:** Linear attention, sparse attention
-
-#### **4. 🔄 ARCHITECTURAL INNOVATION:**
-- **Test different activation functions:** GELU, ReLU, SwiGLU, GLU
-- **Explore normalization techniques:** Layer norm, batch norm, group norm
-- **Test residual connections:** Can we make ultra-deep models work?
-
 ### **🎯 IMMEDIATE ACTION PLAN**
 
 #### **Phase 4: Ultra-Deep Layer Study (Next Priority!)**
@@ -3294,6 +3422,7 @@ We've successfully completed **Phase 4: Ultra-Deep Layer Study** - testing ultra
 2. **Ultra-Fat FFN (256x):** 12.6 tok/s (story-ffn-256x-1k)
 3. **Ultra-Wide Attention (32 heads):** 13.0 tok/s (story-hybrid-256x-32h-1k)
 4. **Ultra-Deep (10+ layers):** 4.3 tok/s (story-deep-10l-3k)
+5. **Hybrid Ultra-Extreme:** 2.2 tok/s (story-hybrid-1k-attn-deep) 🆕
 
 **Phase 4 Success Rate:**
 - **10-15 layer models:** 40% success (4/10 loaded)
@@ -3733,110 +3862,4 @@ We've successfully implemented **Phase 5: Hybrid Ultra-Extreme Study** in `train
 
 #### **7K HYBRID ULTIMATE MODELS (6d + 64x FFN + 6 layers):**
 - **`story-hybrid-7k-ultimate`:** 6d, 384h (64x FFN), 6 layers, 6 heads
-- **`story-hybrid-7k-attn-deep`:** 6d, 96h, 6 layers, 12 heads
-- **`story-hybrid-7k-triple`:** 6d, 384h (64x FFN), 6 layers, 12 heads
-
-#### **10K HYBRID ULTIMATE MODELS (8d + 32x FFN + 5 layers):**
-- **`story-hybrid-10k-ultimate`:** 8d, 256h (32x FFN), 5 layers, 8 heads
-- **`story-hybrid-10k-attn-deep`:** 8d, 64h, 5 layers, 8 heads
-- **`story-hybrid-10k-triple`:** 8d, 256h (32x FFN), 5 layers, 8 heads
-
-### **🎯 PHASE 5 RESEARCH OBJECTIVES**
-
-#### **Primary Goals:**
-1. **Combine ALL proven RP2040 approaches** for maximum performance
-2. **Achieve 5+ tok/s** with ultimate hybrid architectures
-3. **Discover optimal architectural combinations** for RP2040
-4. **Validate hybrid scaling laws** across parameter ranges
-
-#### **Research Questions:**
-1. **Do hybrid approaches scale better** than individual optimizations?
-2. **What's the optimal combination** of narrow + fat + wide + deep?
-3. **Can we achieve 10+ tok/s** with triple hybrid designs?
-4. **How do hybrid models perform** vs. single-approach models?
-
-### **🚀 HOW TO RUN PHASE 5**
-
-#### **Option 1: Parallel Testing (Recommended - 4-8x faster!)**
-```bash
-python train.py
-# Choose: hybrid_test_parallel
-```
-
-#### **Option 2: Sequential Testing**
-```bash
-python train.py  
-# Choose: hybrid_test
-```
-
-#### **Option 3: Test ALL Phases Simultaneously**
-```bash
-python train.py
-# Choose: all_parallel
-```
-
-### **📈 EXPECTED BREAKTHROUGHS**
-
-#### **Speed Targets (Based on Previous Findings):**
-- **1K models:** Target 15-25 tok/s (combining best 1K approaches)
-- **3K models:** Target 8-15 tok/s (combining best 3K approaches)
-- **5K models:** Target 5-10 tok/s (combining best 5K approaches)
-- **7K models:** Target 3-8 tok/s (combining best 7K approaches)
-- **10K models:** Target 2-5 tok/s (combining best 10K approaches)
-
-#### **Architectural Insights Expected:**
-- **Hybrid approach scaling laws** for RP2040
-- **Optimal architectural combinations** for maximum speed
-- **Memory efficiency** of hybrid designs
-- **Performance vs. complexity** trade-offs
-
-### **🔬 PHASE 5 IMPLEMENTATION DETAILS**
-
-#### **New Functions Added:**
-- `test_hybrid_ultra_extreme()`: Main testing function with sequential processing
-- `test_hybrid_ultra_extreme_parallel()`: Parallel testing function for maximum speed
-- **18 new model configurations** in `MODEL_CONFIGS`
-- **Menu integration** for both parallel and sequential testing
-- **Progress tracking** and success rate analysis
-
-#### **Parallel Processing Features:**
-- **Multi-core training** across all CPU cores
-- **Dynamic worker allocation** based on system resources
-- **Progress monitoring** with real-time updates
-- **Error handling** and result aggregation
-
-### **🎯 NEXT STEPS**
-
-**Phase 5 is now ready to run!** Choose your testing approach:
-
-1. **`hybrid_test_parallel`** - Fastest option (4-8x speedup)
-2. **`hybrid_test`** - Sequential testing for detailed analysis  
-3. **`all_parallel`** - Test ALL phases simultaneously
-
-**Expected Duration:** 1-2 hours with parallel processing
-**Target Discovery:** Models achieving 5+ tok/s with ultimate hybrid architectures!
-
-### **🏆 BREAKTHROUGH POTENTIAL**
-
-With **18 hybrid ultra-extreme variants**, we're positioned to discover:
-
-- **Optimal architectural combinations** that maximize RP2040 performance
-- **Hybrid scaling laws** across all parameter ranges (1K-10K)
-- **Performance ceilings** for combined optimization approaches
-- **The ultimate RP2040 transformer architecture** for production use
-
-**This could be the final breakthrough** that unlocks the full potential of RP2040 transformers! 🚀🎯
-
-### **🔬 SCIENTIFIC IMPACT**
-
-This **18-variant hybrid ultra-extreme study** represents:
-- **Maximum architectural optimization** combining all proven approaches
-- **RP2040-focused design** with guaranteed compatibility
-- **Performance boundary exploration** with hybrid architectures
-- **Production-ready architecture** discovery for microcontrollers
-
-**Ready to discover the ultimate RP2040 transformer architecture?** 🚀 The hybrid approach could achieve **unprecedented performance** by combining all our breakthrough discoveries!
-
----
-
-*Phase 5 Hybrid Ultra-Extreme Study implementation complete - combining ALL proven RP2040 approaches for guaranteed success and maximum performance!*
+- **`
